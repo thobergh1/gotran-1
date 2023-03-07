@@ -4,7 +4,30 @@
 #include <string.h>
 #include <time.h>
 #include "tentusscher_panfilov_2006_M_cell.h"
+
+#include <assert.h>
+#include <stdint.h>
+
+#include "bench.h"
+#include "bench_util.h"
+// #include "rng.h"
+// #include "schemes.h"
+
+
 // Gotran generated C/C++ code for the "base_model" model
+uint64_t ceil_div_uint64(uint64_t a, uint64_t b);
+uint64_t ceil_to_multiple_uint64(uint64_t a, uint64_t b);
+
+uint64_t ceil_div_uint64(uint64_t a, uint64_t b)
+{
+    return (a + b - 1) / b;
+}
+
+uint64_t ceil_to_multiple_uint64(uint64_t a, uint64_t b)
+{
+    return ceil_div_uint64(a, b) * b;
+}
+
 
 void ode_solve_forward_euler(double* u, const double* parameters,
                              double* u_values, double* t_values,
@@ -13,15 +36,27 @@ void ode_solve_forward_euler(double* u, const double* parameters,
   double t;
   int save_it = 1;
   int it, j;
+
+  unsigned int num_states = NUM_STATES;
+  size_t states_size = num_states * sizeof(double);
+
+  unsigned int num_parameters = NUM_PARAMS;
+  size_t parameters_size = num_parameters * sizeof(double);
+
+  int num_cells = 1;
+  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
+  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
+          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
+
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
-    //forward_explicit_euler(u, t, dt, parameters, celltype);
-    forward_explicit_euler(u, t, dt, parameters);
+    forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
+    // printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
+
     for (j=0; j < NUM_STATES; j++) {
       u_values[save_it*NUM_STATES + j] = u[j];
     }
     save_it++;
-
   }
 }
 
@@ -32,9 +67,21 @@ void ode_solve_rush_larsen(double* u, const double* parameters,
   double t;
   int save_it = 1;
   int it, j;
+
+  unsigned int num_states = NUM_STATES;
+  size_t states_size = num_states * sizeof(double);
+
+  unsigned int num_parameters = NUM_PARAMS;
+  size_t parameters_size = num_parameters * sizeof(double);
+
+  int num_cells = 1;
+  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
+  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
+          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
+
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
-    forward_rush_larsen(u, t, dt, parameters);
+    forward_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells);
     for (j=0; j < NUM_STATES; j++) {
       u_values[save_it*NUM_STATES + j] = u[j];
     }
@@ -65,14 +112,21 @@ int main(int argc, char *argv[])
     }
   }
 
+
+  int num_cells = 1;
+  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
+  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
+          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
+
   unsigned int num_states = NUM_STATES;
   size_t states_size = num_states * sizeof(double);
 
   unsigned int num_parameters = NUM_PARAMS;
   size_t parameters_size = num_parameters * sizeof(double);
 
-  double *states = malloc(states_size);
-  double *parameters = malloc(parameters_size);
+  cellmodel_float_t *states = aligned_alloc(alignment_bytes, states_size);
+  cellmodel_float_t *parameters = malloc(parameters_size);
+
   init_parameters_values(parameters);
 
   double t = t_start;
@@ -80,13 +134,19 @@ int main(int argc, char *argv[])
   struct timespec timestamp_start, timestamp_now;
   double time_elapsed;
 
+
+  //printf("num_timesteps: %ld\n", num_timesteps);
+
+
   // forward euler
   printf("Scheme: Forward Euler\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
-  init_state_values(states);
+  init_state_values(states, num_cells, padded_num_cells);
   int it;
   for (it = 0; it < num_timesteps; it++) {
-    forward_explicit_euler(states, t, dt, parameters);
+    //printf("%ld\n", it);
+
+    forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
     t += dt;
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
@@ -95,12 +155,13 @@ int main(int argc, char *argv[])
       num_timesteps, time_elapsed, num_timesteps/time_elapsed);
   printf("\n");
 
+
   // Rush Larsen
   printf("Scheme: Rush Larsen (exp integrator on all gates)\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
-  init_state_values(states);
+  init_state_values(states, num_cells, padded_num_cells);
   for (it = 0; it < num_timesteps; it++) {
-    forward_rush_larsen(states, t, dt, parameters);
+    forward_rush_larsen(states, t, dt, parameters, num_cells, padded_num_cells);
     t += dt;
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
