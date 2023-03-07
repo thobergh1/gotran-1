@@ -5,6 +5,8 @@ from ctypes import c_int
 import matplotlib.pyplot as plt
 import numpy as np
 
+import time
+
 libname = "libdemo.so"
 libdir = "."
 libpath = os.path.join(libdir, libname)
@@ -102,20 +104,29 @@ def solve(t_start, t_end, dt, num_steps=None, method="fe"):
 
 
 def main():
-
+    N = 20
     t_start = 0.0
     t_end = 400.0
     dt = 0.001
+    total = 0
+    for i in range(N):
+        start = time.time()
+        t_values, u_values = solve(t_start, t_end, dt, method="fe")
+        end = time.time()
+        total += end-start
+        print(end-start)
+    print("")
+    print(total/N)
+    #V_idx = libbase_model.state_index("V")
+    
+    print(u_values[0:10])
+    #plt.plot(t_values, u_values[:])
 
-    t_values, u_values = solve(t_start, t_end, dt, method="fe")
-
-    V_idx = libbase_model.state_index("V")
-
-    fig, ax = plt.subplots()
-    ax.plot(t_values, u_values[:, V_idx])
-    ax.set_title("Membrane potential")
-    ax.set_xlabel("Time (ms)")
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.plot(t_values, u_values[:, V_idx])
+    # ax.set_title("Membrane potential")
+    # ax.set_xlabel("Time (ms)")
+    # plt.show()
 
 
 if __name__ == "__main__":
