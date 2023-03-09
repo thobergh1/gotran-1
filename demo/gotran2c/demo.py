@@ -117,16 +117,16 @@ def main():
         print(end-start)
     print("")
     print(total/N)
-    #V_idx = libbase_model.state_index("V")
+    V_idx = libbase_model.state_index("V")
     
-    print(u_values[0:10])
-    #plt.plot(t_values, u_values[:])
+    # print(u_values[0:10])
+    # plt.plot(t_values, u_values[:])
 
-    # fig, ax = plt.subplots()
-    # ax.plot(t_values, u_values[:, V_idx])
-    # ax.set_title("Membrane potential")
-    # ax.set_xlabel("Time (ms)")
-    # plt.show()
+    fig, ax = plt.subplots()
+    ax.plot(t_values, u_values[:, V_idx])
+    ax.set_title("Membrane potential")
+    ax.set_xlabel("Time (ms)")
+    plt.show()
 
 
 if __name__ == "__main__":
