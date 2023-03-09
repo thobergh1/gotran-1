@@ -8,8 +8,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "bench.h"
-#include "bench_util.h"
+// #include "bench.h"
+// #include "bench_util.h"
 // #include "rng.h"
 // #include "schemes.h"
 
@@ -37,11 +37,11 @@ void ode_solve_forward_euler(double* u, const double* parameters,
   int save_it = 1;
   int it, j;
 
-  unsigned int num_states = NUM_STATES;
-  size_t states_size = num_states * sizeof(double);
+  // unsigned int num_states = NUM_STATES;
+  // size_t states_size = num_states * sizeof(double);
 
-  unsigned int num_parameters = NUM_PARAMS;
-  size_t parameters_size = num_parameters * sizeof(double);
+  // unsigned int num_parameters = NUM_PARAMS;
+  // size_t parameters_size = num_parameters * sizeof(double);
 
   int num_cells = 1;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
@@ -51,7 +51,7 @@ void ode_solve_forward_euler(double* u, const double* parameters,
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
     forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
-    // printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
+    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
 
     for (j=0; j < NUM_STATES; j++) {
       u_values[save_it*NUM_STATES + j] = u[j];
@@ -68,11 +68,11 @@ void ode_solve_rush_larsen(double* u, const double* parameters,
   int save_it = 1;
   int it, j;
 
-  unsigned int num_states = NUM_STATES;
-  size_t states_size = num_states * sizeof(double);
+  // unsigned int num_states = NUM_STATES;
+  // size_t states_size = num_states * sizeof(double);
 
-  unsigned int num_parameters = NUM_PARAMS;
-  size_t parameters_size = num_parameters * sizeof(double);
+  // unsigned int num_parameters = NUM_PARAMS;
+  // size_t parameters_size = num_parameters * sizeof(double);
 
   int num_cells = 1;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
@@ -112,22 +112,22 @@ int main(int argc, char *argv[])
     }
   }
 
+  unsigned int num_states = NUM_STATES;
+  unsigned int num_parameters = NUM_PARAMS;
 
   int num_cells = 1;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
-  unsigned int num_states = NUM_STATES;
   size_t states_size = num_states * sizeof(double);
-
-  unsigned int num_parameters = NUM_PARAMS;
   size_t parameters_size = num_parameters * sizeof(double);
 
   cellmodel_float_t *states = aligned_alloc(alignment_bytes, states_size);
   cellmodel_float_t *parameters = malloc(parameters_size);
 
   init_parameters_values(parameters);
+  init_state_values(states, num_cells, padded_num_cells);
 
   double t = t_start;
 
@@ -141,12 +141,15 @@ int main(int argc, char *argv[])
   // forward euler
   printf("Scheme: Forward Euler\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
-  init_state_values(states, num_cells, padded_num_cells);
   int it;
+ 
   for (it = 0; it < num_timesteps; it++) {
     //printf("%ld\n", it);
 
     forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
+
+
+    
     t += dt;
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
