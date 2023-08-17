@@ -28,7 +28,20 @@ uint64_t ceil_to_multiple_uint64(uint64_t a, uint64_t b)
     return ceil_div_uint64(a, b) * b;
 }
 
+int detect_num_threads()
+{
+    int count = 0;
+    #pragma omp parallel
+    {
+        #pragma omp critical
+        {
+            count++;
+        }
+    }
+    return count;
+}
 
+#if 0
 void ode_solve_forward_euler(double* u, const double* parameters,
                              double* u_values, double* t_values,
                              int num_timesteps, double dt)
@@ -37,29 +50,27 @@ void ode_solve_forward_euler(double* u, const double* parameters,
   int save_it = 1;
   int it, j;
 
-  // unsigned int num_states = NUM_STATES;
-  // size_t states_size = num_states * sizeof(double);
 
-  // unsigned int num_parameters = NUM_PARAMS;
-  // size_t parameters_size = num_parameters * sizeof(double);
-
-  int num_cells = 1;
+  int num_cells = 1000;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
+  // unsigned int num_states = NUM_STATES;
+  // unsigned int num_parameters = NUM_PARAMS;
+
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
     forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
-    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
+    printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
 
     for (j=0; j < NUM_STATES; j++) {
       u_values[save_it*NUM_STATES + j] = u[j];
     }
     save_it++;
   }
-}
 
+}
 void ode_solve_rush_larsen(double* u, const double* parameters,
                              double* u_values, double* t_values,
                              int num_timesteps, double dt)
@@ -68,16 +79,18 @@ void ode_solve_rush_larsen(double* u, const double* parameters,
   int save_it = 1;
   int it, j;
 
-  // unsigned int num_states = NUM_STATES;
-  // size_t states_size = num_states * sizeof(double);
 
-  // unsigned int num_parameters = NUM_PARAMS;
-  // size_t parameters_size = num_parameters * sizeof(double);
 
-  int num_cells = 1;
+  int num_cells = 8;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
+
+  unsigned int num_states = NUM_STATES;
+  size_t states_size = num_states * sizeof(double) * padded_num_cells;
+
+  unsigned int num_parameters = NUM_PARAMS;
+  size_t parameters_size = num_parameters * sizeof(double);
 
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
@@ -88,6 +101,7 @@ void ode_solve_rush_larsen(double* u, const double* parameters,
     save_it++;
   }
 }
+#endif
 
 int state_count()
 {
@@ -102,8 +116,8 @@ int parameter_count()
 int main(int argc, char *argv[])
 {
   double t_start = 0;
-  double dt = 0.02E-3;
-  int num_timesteps = (int) 1000000;
+  double dt = 0.0001;
+  int num_timesteps = (int) 5;
   if (argc > 1) {
     num_timesteps = atoi(argv[1]);
     printf("num_timesteps set to %d\n", num_timesteps);
@@ -115,12 +129,12 @@ int main(int argc, char *argv[])
   unsigned int num_states = NUM_STATES;
   unsigned int num_parameters = NUM_PARAMS;
 
-  int num_cells = 1;
+  int num_cells = 11500000;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
-  size_t states_size = num_states * sizeof(double);
+  size_t states_size = num_states * sizeof(double) *padded_num_cells;
   size_t parameters_size = num_parameters * sizeof(double);
 
   cellmodel_float_t *states = aligned_alloc(alignment_bytes, states_size);
@@ -136,29 +150,36 @@ int main(int argc, char *argv[])
 
 
   //printf("num_timesteps: %ld\n", num_timesteps);
+  int num_threads = detect_num_threads();
+  printf("Using %d thread(s)\n", num_threads);
+
+  size_t total_size = states_size + parameters_size;
+  printf("Memory footprint: %lu bytes\n\n", total_size);
 
 
   // forward euler
   printf("Scheme: Forward Euler\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
   int it;
- 
   for (it = 0; it < num_timesteps; it++) {
     //printf("%ld\n", it);
 
     forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
-
-
     
     t += dt;
   }
+
+
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-  printf("Computed %d time steps in %g s. Time steps per second: %g\n",
-      num_timesteps, time_elapsed, num_timesteps/time_elapsed);
+  printf("Computed %d time steps in %g s. Computed cell steps per second: %g\n",
+      num_timesteps, time_elapsed, num_cells*num_timesteps/time_elapsed);
   printf("\n");
 
+  printf("V= %.4f at t=%.4f\n", states[17*padded_num_cells],t);
 
+
+  #if 0
   // Rush Larsen
   printf("Scheme: Rush Larsen (exp integrator on all gates)\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
@@ -169,13 +190,15 @@ int main(int argc, char *argv[])
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-  printf("Computed %d time steps in %g s. Time steps per second: %g\n",
-      num_timesteps, time_elapsed, num_timesteps/time_elapsed);
+   printf("Computed %d time steps in %g s. Computed cell steps per second: %g\n",
+      num_timesteps, time_elapsed, num_cells*num_timesteps/time_elapsed);
   printf("\n");
 
+  printf("V= %f at t=%f\n", states[17*padded_num_cells],t);
 
   free(states);
   free(parameters);
 
   return 0;
+  #endif
 }
