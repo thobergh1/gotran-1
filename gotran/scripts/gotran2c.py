@@ -43,6 +43,8 @@ def gotran2c(filename, params):
         if params.system_headers:
             f.write("#include <math.h>\n")
             f.write("#include <string.h>\n")
+            f.write("#include <omp.h>\n")            
+            f.write('#include "cellmodel.h"\n')
 
         f.write(code)
 
