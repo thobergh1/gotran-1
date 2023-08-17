@@ -29,6 +29,7 @@ __all__ = [
     "StateIndexedExpression",
     "ParameterIndexedExpression",
     "recreate_expression",
+    "replace_expression",
 ]
 
 from modelparameters.codegeneration import latex, sympycode
@@ -49,6 +50,14 @@ from .odeobjects import (
     cmp,
     cmp_to_key,
 )
+
+def replace_expression(expr, lut_expr):
+    
+    new_expr = StateDerivative(expr.state, lut_expr)
+
+    return new_expr
+
+
 
 
 def recreate_expression(expr, *replace_dicts, **kwargs):
@@ -707,3 +716,14 @@ class ParameterIndexedExpression(ParameterIndexedObject, Expression):
 
 # Tuple with Derivative types, for type checking
 Derivatives = (StateDerivative, DerivativeExpression)
+
+
+class LUTExpression(Expression):
+
+    def __init__(self, name, expr, state_symbol, lut_expr_index, dependent=None):
+        super().__init__(self, name, expr, dependent)
+
+        self.state_symbol = state_symbol
+        self.lut_expr_index = lut_expr_index
+
+        
