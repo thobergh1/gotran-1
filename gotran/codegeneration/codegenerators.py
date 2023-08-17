@@ -1836,37 +1836,6 @@ class CCodeGenerator(BaseCodeGenerator):
                     line += f"; // {param.name}"
                 parameter_lines.append(line)
 
-            #parameter_lines.append(
-            #    "#if defined(HINT_CLANG_SIMD) \n   "
-            #    "#pragma omp for"
-            #    "#pragma clang loop vectorize(assume_safety) \n"
-            #    "#elif defined(HINT_OMP_SIMD) \n"
-            #    "#ifdef \ VECTOR_LENGTH \n"
-            #    "#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH) \n"
-            #    "#else"
-            #    "#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
-            #    "#endif // defined(VECTOR_LENGTH) \n"
-            #    "#else \n"
-            #    "#pragma omp for \n"
-            #    "#endif \n"
-            #    "for (long i = 0; i < num_cells; i++)")
-
-
-            #parameter_lines.append("")
-            #parameter_lines.append(str("#if defined(HINT_CLANG_SIMD)"))
-            #parameter_lines.append(str("#pragma omp for"))
-            #parameter_lines.append(str("#pragma clang loop vectorize(assume_safety)"))
-            #parameter_lines.append(str("#elif defined(HINT_OMP_SIMD)"))
-            #parameter_lines.append(str("#ifdef \ VECTOR_LENGTH"))
-            #parameter_lines.append(str("#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH)"))
-            #parameter_lines.append(str("#else"))
-            #parameter_lines.append(str("#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES)"))
-            #parameter_lines.append(str("#endif // defined(VECTOR_LENGTH)"))
-            #parameter_lines.append(str("#else"))
-            #parameter_lines.append(str("#pragma omp for"))
-            #parameter_lines.append(str("#endif"))
-            #parameter_lines.append(str("for (long i = 0; i < num_cells; i++)"))
-
             parameter_lines.append(
             "#if defined(HINT_CLANG_SIMD) \n"
             "#pragma omp for\n"
@@ -1952,7 +1921,7 @@ class CCodeGenerator(BaseCodeGenerator):
                                 ),
                             )
                         else:
-                            name = "{0}[{1}]".format(
+                            name = "{0}[{1} * padded_num_cells + i]".format(
                                 expr.basename,
                                 self._state_enum_val(expr.state),
                             )
