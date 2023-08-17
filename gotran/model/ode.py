@@ -50,6 +50,76 @@ from .expressions import (
 from .odecomponent import Comment, ODEComponent
 from .odeobjects import Dt, Parameter, Time, cmp
 
+class Node(object):
+    def __init__(self, sympyexpr, parent=None):
+        self.parent = parent
+        self.sympyexpr = sympyexpr
+        self.children = []
+        self.referentstates = set()
+        self.time_dependent = False
+        self.depth = 0
+        
+        if parent is not None:
+            self.depth = parent.depth + 1
+        
+    def add_child(self, child):
+        self.children.append(child)
+        
+    def add_referent_state(self,state):
+        self.referentstates.add(state)
+        if self.parent is not None:
+            self.parent.add_referent_state(state)
+            
+    def mark_as_explicitly_time_dependent(self, state_symbols):
+        self.time_dependent = True
+        if self.parent and self.parent.sympyexpr not in state_symbols:
+            self.parent.mark_as_explicitly_time_dependent(state_symbols)
+            
+    def __str__(self):
+        s = "- "*self.depth + str(self.sympyexpr.func)
+        if self.time_dependent:
+            s += ": time dependent"
+        
+        for child in self.children:
+            s += "\n" + str(child)
+        return s
+    
+    def pre_order(self):
+        yield self
+        for child in self.children:
+            for x in child.pre_order():
+                yield x
+    
+    def is_leaf(self):
+        return len(self.children) == 0
+    
+
+class SyntaxTree(object):
+    def __init__(self, root):
+        self.root = root
+        
+    @staticmethod
+    def from_sympy(expr):
+        root = SyntaxTree._traverse_expr(expr)
+        return SyntaxTree(root)
+
+    @staticmethod
+    def _traverse_expr(expr, parent=None):
+        node = Node(expr,parent)
+        for arg in expr.args:
+            child = SyntaxTree._traverse_expr(arg, node)
+            node.add_child(child)
+            
+        return node
+        
+    def detect_state_references(self, state_symbol_list, t):
+        for node in self.root.pre_order():
+            for s in state_symbol_list:
+                if node.sympyexpr is s:
+                    node.add_referent_state(s)
+                if node.sympyexpr is t:
+                    node.mark_as_explicitly_time_dependent(state_symbol_list)
+
 
 class ODE(ODEComponent):
     """
@@ -1159,3 +1229,22 @@ class ODE(ODEComponent):
         comp.add_derivative(expr_obj, var_obj, der_result, dependent)
 
         return True
+    
+    def setup_lut(self, state_symbols):
+        self.state_expressions
+
+        lut_expressions = {}
+        for s in state_symbols:
+            print("state: ", s)
+
+            # analyser hvilke deler av treet for state deriverte som kan passe inn i LUT
+            
+            # når vi har listen over alle LUT-uttrykk for variabelen, så kaller vi subs-metoden på hver av de state-deriverte og setter inn LUTExpression for sympy-uttrykkene
+
+            # lut_expressions[s] = liste med LUTExpression
+
+        #self.lut_expressions = lut_expressions
+
+        # nå vet vi hvilke uttrykk som skal LUTifiseres
+        return 0
+
