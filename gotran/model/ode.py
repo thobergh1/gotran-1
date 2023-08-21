@@ -33,6 +33,8 @@ from modelparameters.logger import debug, error
 from modelparameters.sympytools import sp
 from modelparameters.utils import Timer, check_arg
 from modelparameters.sympy.core.function import AppliedUndef
+from modelparameters.sympy.core.function import UndefinedFunction
+
 
 from .expressions import (
     AlgebraicExpression,
@@ -99,17 +101,27 @@ class SyntaxTree(object):
         self.root = root
         
     @staticmethod
-    def from_sympy(expr):
-        root = SyntaxTree._traverse_expr(expr)
+    def from_sympy(expr, ode):
+        root = SyntaxTree._traverse_expr(expr, ode)
         return SyntaxTree(root)
 
     @staticmethod
-    def _traverse_expr(expr, parent=None):
-        node = Node(expr,parent)
-        for arg in expr.args:
-            child = SyntaxTree._traverse_expr(arg, node)
-            node.add_child(child)
+    def _traverse_expr(expr, ode, parent=None):
+        print(expr)
+        if type(expr) is UndefinedFunction:
+            intermediate_name = str(type(expr))
+            if intermediate_name in ode.intermediate_symbols:
+                old_expr = expr             
+                intermediate_ind = ode.intermediate_symbols.index(intermediate_name)
+                expr = ode.intermediates[intermediate_ind].expr
+                if parent:
+                    parent.sympy_subs(old_expr, expr)
+                #check = True
             
+        node = Node(expr, parent)
+        for arg in expr.args:
+            child = SyntaxTree._traverse_expr(arg, ode, node)
+            node.add_child(child)
         return node
         
     def detect_state_references(self, state_symbol_list, t):
@@ -119,6 +131,72 @@ class SyntaxTree(object):
                     node.add_referent_state(s)
                 if node.sympyexpr is t:
                     node.mark_as_explicitly_time_dependent(state_symbol_list)
+  
+
+    def find_lut_candidates(self, candidates):
+        #lut_candidates is a dictionary of lists
+        
+        #hvis node er kandidat
+        
+        lut_candidates = {}
+        for i in candidates:
+            lut_candidates[i] = []
+    
+        lut_index = 0
+        
+        pre_order(self.root, lut_candidates)
+    
+        return lut_candidates
+
+    
+def pre_order(node, lut_candidates):
+    referentstates = list(node.referentstates)
+    if len(referentstates) == 1 and not node.time_dependent:
+        s_sym = referentstates[0]
+        s_str = str(type(s_sym))
+        if s_str in lut_candidates:
+            duplicate = False
+            for element in lut_candidates[s_str]:
+                if element == node.sympyexpr:
+                    duplicate = True
+
+            if not duplicate and node.parent.depth == 1:
+
+                #print("Here", node.sympyexpr)
+                valid_expr = evaluate_expr(node.sympyexpr)
+                
+                for expr in valid_expr:
+                    
+                    lut_candidates[s_str].append(expr)
+                
+                    #col_idx = len(lut_candidates[s_str])
+                    #lut_expr = "lut_" + s_str
+                    
+                #print(col_idx)
+                #print(lut_expr)
+
+
+    for child in node.children:
+        pre_order(child, lut_candidates)
+    
+    
+
+def evaluate_expr(expr):
+    good_expressions = []
+       
+    def isPiecewise(expr):
+        if expr.is_Piecewise:
+            return True
+
+        for arg in expr.args:
+            return isPiecewise(arg)
+        
+           
+    if not isPiecewise(expr):
+        good_expressions.append(expr)
+        
+    
+    return good_expressions
 
 
 class ODE(ODEComponent):
@@ -207,6 +285,9 @@ class ODE(ODEComponent):
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
 
+        #lut expressions
+        self.lut_expressions = dict()
+
     @property
     def parameter_symbols(self):
         return [s.name for s in self.parameters]
@@ -228,7 +309,7 @@ class ODE(ODEComponent):
     @property
     def intermediate_symbols(self):
         return [i.name for i in self.intermediates]
-
+    
     @property
     def ns(self):
         if isinstance(self._ns, dict):
@@ -1230,21 +1311,47 @@ class ODE(ODEComponent):
 
         return True
     
-    def setup_lut(self, state_symbols):
-        self.state_expressions
+    def setup_lut(self, candidates):
+       
+        ode = ODE(self.name)
+
+
 
         lut_expressions = {}
-        for s in state_symbols:
-            print("state: ", s)
+        for state_symbol in self.state_symbols:
+
+            d_state = self.state_expressions[self.state_symbols.index(state_symbol)]
+            #print()
+            #print(type(d_state.expr))
+            
+            state_symbols = [s.sym for s in self.states]
+            tree = SyntaxTree.from_sympy(d_state.expr, ode)
+
+            #print(tree.root.children.sympyexpr)
+
+            tree.detect_state_references(state_symbols, ode.t)
+            expr = tree.find_lut_candidates(list(candidates))
+
+            lut_expressions[state_symbol] = expr
+
+
+            #recreate_expression(expr, lut_expressions)
+
+
 
             # analyser hvilke deler av treet for state deriverte som kan passe inn i LUT
             
-            # når vi har listen over alle LUT-uttrykk for variabelen, så kaller vi subs-metoden på hver av de state-deriverte og setter inn LUTExpression for sympy-uttrykkene
+            # når vi har listen over alle LUT-uttrykk for variabelen,
+            # så kaller vi subs-metoden på hver av de state-deriverte
+            # og setter inn LUTExpression for sympy-uttrykkene
 
             # lut_expressions[s] = liste med LUTExpression
 
-        #self.lut_expressions = lut_expressions
+        self.lut_expressions = lut_expressions
+        print()
+        #print("setup_lut done")
+        print(lut_expressions)
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres
-        return 0
+        return lut_expressions
 
