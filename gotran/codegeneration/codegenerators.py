@@ -186,6 +186,12 @@ class BaseCodeGenerator(object):
             code["init_states"] = self.init_states_code(ode, indent)
             code["init_parameters"] = self.init_parameters_code(ode, indent)
 
+        # If generate lut code
+        if include_init: #Change to inculde_lut
+            code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
+            #code["init_parameters"] = self.init_parameters_code(ode, indent)
+
+
         # If generate index map code
         if include_index_map:
             code["state_indices"] = self.state_name_to_index_code(ode, indent)
@@ -1438,7 +1444,7 @@ class CCodeGenerator(BaseCodeGenerator):
         # FIXME: No need for full_states here...
         full_states = comp.root.full_states
         used_states = comp.used_states if hasattr(comp, "used_states") else full_states
-
+        
         used_parameters = (
             comp.used_parameters
             if hasattr(comp, "used_parameters")
@@ -1791,6 +1797,68 @@ class CCodeGenerator(BaseCodeGenerator):
         )
 
         return "\n".join(self.indent_and_split_lines(function, indent=indent))
+
+
+    def init_lut_expression_code(self, ode, indent=0):
+        """
+        Generating code for building lut expressions
+        """
+
+        
+        body_lines = []
+
+        states_name = self.params.code.states.array_name
+        offset = (
+            f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+        )
+
+        enum_based_indexing = self.params.code["body"]["use_enum"]
+
+        body_lines = [f"constexpr std::array<const univariate_func_tuple" ]
+
+        candidates = "V"
+
+        lut_expressions = ode.setup_lut(candidates)
+
+
+        print("here")
+
+        for key in lut_expressions:
+            print(key, lut_expressions[key])
+
+            body_lines.append(lut_expressions[key][candidates])
+
+        print(body_lines)
+        # Add function prototype
+        init_function = self.wrap_body_with_function_prototype(
+            body_lines,
+            "constexpr std::array<const univariate_func_tuple, 28> expressions_V = ",
+            f"{self.float_type}* {states_name}, const long num_cells, long padded_num_cells",
+            "",
+            "Init lut values",
+        )
+
+        return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
+
+
+        """
+        def LUT_enum_code(self, ode, indent=0):
+    
+        #Generate enum for LUT state variables
+
+        indent_str = self.indent * " "
+        member_lines = [
+            f"{indent_str}{self._state_enum_val(state)}," for state in ode.full_states
+        ]
+        enum = ["enum {"]
+        enum.extend(member_lines)
+        enum.append(f"LUT_INDEX_{indent_str}")
+        enum.append("};")
+        return "\n".join(enum)
+        """
+
+
+
 
     def function_code(
         self,
