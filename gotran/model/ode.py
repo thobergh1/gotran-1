@@ -36,6 +36,7 @@ from modelparameters.sympy.core.function import AppliedUndef
 from modelparameters.sympy.core.function import UndefinedFunction
 
 
+
 from .expressions import (
     AlgebraicExpression,
     DerivativeExpression,
@@ -75,7 +76,12 @@ class Node(object):
     def mark_as_explicitly_time_dependent(self, state_symbols):
         self.time_dependent = True
         if self.parent and self.parent.sympyexpr not in state_symbols:
-            self.parent.mark_as_explicitly_time_dependent(state_symbols)
+            self.parent.mark_as_explicitly_time_dependent(state_symbols)        
+            
+    def sympy_subs(self, old_expr, new_expr):
+        self.sympyexpr = self.sympyexpr.subs(old_expr, new_expr)
+        if self.parent:
+            self.parent.sympy_subs(old_expr, new_expr)
             
     def __str__(self):
         s = "- "*self.depth + str(self.sympyexpr.func)
@@ -95,32 +101,37 @@ class Node(object):
     def is_leaf(self):
         return len(self.children) == 0
     
+    
 
 class SyntaxTree(object):
     def __init__(self, root):
         self.root = root
         
     @staticmethod
-    def from_sympy(expr, ode):
-        root = SyntaxTree._traverse_expr(expr, ode)
+    def from_sympy(expr, intermediates, intermediate_symbols):
+        root = SyntaxTree._traverse_expr(expr, intermediates, intermediate_symbols)
         return SyntaxTree(root)
 
     @staticmethod
-    def _traverse_expr(expr, ode, parent=None):
-        print(expr)
-        if type(expr) is UndefinedFunction:
-            intermediate_name = str(type(expr))
-            if intermediate_name in ode.intermediate_symbols:
-                old_expr = expr             
-                intermediate_ind = ode.intermediate_symbols.index(intermediate_name)
-                expr = ode.intermediates[intermediate_ind].expr
-                if parent:
-                    parent.sympy_subs(old_expr, expr)
-                #check = True
+    def _traverse_expr(expr, intermediates, intermediate_symbols, parent=None):
+        #print(expr)
+        #print(type(expr))
+
+        #print(type(expr))
+        #if type(expr) is UndefinedFunction:
+        intermediate_name = str(type(expr))
+        #print(intermediate_name)
+        if intermediate_name in intermediate_symbols:
+            old_expr = expr             
+            intermediate_ind = intermediate_symbols.index(intermediate_name)
+            expr = intermediates[intermediate_ind].expr
+            if parent:
+                parent.sympy_subs(old_expr, expr)
+            #check = True
             
         node = Node(expr, parent)
         for arg in expr.args:
-            child = SyntaxTree._traverse_expr(arg, ode, node)
+            child = SyntaxTree._traverse_expr(arg, intermediates, intermediate_symbols, node)
             node.add_child(child)
         return node
         
@@ -1314,8 +1325,9 @@ class ODE(ODEComponent):
     def setup_lut(self, candidates):
        
         ode = ODE(self.name)
-
-
+        print()
+        #print(self.intermediates)
+        
 
         lut_expressions = {}
         for state_symbol in self.state_symbols:
@@ -1323,9 +1335,12 @@ class ODE(ODEComponent):
             d_state = self.state_expressions[self.state_symbols.index(state_symbol)]
             #print()
             #print(type(d_state.expr))
+            #print(d_state.expr)
+            
             
             state_symbols = [s.sym for s in self.states]
-            tree = SyntaxTree.from_sympy(d_state.expr, ode)
+
+            tree = SyntaxTree.from_sympy(d_state.expr, self.intermediates, self.intermediate_symbols)
 
             #print(tree.root.children.sympyexpr)
 
@@ -1348,9 +1363,8 @@ class ODE(ODEComponent):
             # lut_expressions[s] = liste med LUTExpression
 
         self.lut_expressions = lut_expressions
-        print()
         #print("setup_lut done")
-        print(lut_expressions)
+        #print(lut_expressions)
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres
         return lut_expressions
