@@ -129,7 +129,17 @@ def recreate_expression(expr, *replace_dicts, **kwargs):
 
     return new_expr
 
-
+    """
+    elif isinstance(expr, LUTExpression):
+        new_expr = LUTExpression(
+            expr.basename,
+            sympyexpr,
+            expr.state,
+            lut_expr_index,
+            dependent=None
+        )
+    """
+    
 class Expression(ODEValueObject):
     """
     class for all expressions such as intermediates and derivatives
@@ -720,8 +730,21 @@ Derivatives = (StateDerivative, DerivativeExpression)
 
 class LUTExpression(Expression):
 
-    def __init__(self, name, expr, state_symbol, lut_expr_index, dependent=None):
-        super().__init__(self, name, expr, dependent)
+    def __init__(
+            self,
+            name,
+            expr,
+            state_symbol,
+            lut_expr_index,
+            dependent=None
+        ):
+
+        """
+        
+        """
+        #super().__init__(self, self.name, expr, dependent)
+        super().__init__(name, expr, dependent)
+
 
         self.state_symbol = state_symbol
         self.lut_expr_index = lut_expr_index
