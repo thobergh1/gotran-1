@@ -49,6 +49,7 @@ from .expressions import (
     StateExpression,
     StateSolution,
     recreate_expression,
+    LUTExpression,
 )
 from .odecomponent import Comment, ODEComponent
 from .odeobjects import Dt, Parameter, Time, cmp
@@ -180,10 +181,13 @@ def pre_order(node, lut_candidates):
                     
                     lut_candidates[s_str].append(expr)
                 
+
+
                     #col_idx = len(lut_candidates[s_str])
-                    #lut_expr = "lut_" + s_str
+                    #lut_name = "lut_" + s_str
+                    #LUTExpression(lut_name, expr, s_str, col_idx)
                     
-                #print(col_idx)
+                    #print(col_idx)
                 #print(lut_expr)
 
 
@@ -296,8 +300,9 @@ class ODE(ODEComponent):
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
 
-        #lut expressions
-        self.lut_expressions = dict()
+        # Dict of LUT expressions will be populated
+        self.LUT_expressions = dict()
+
 
     @property
     def parameter_symbols(self):
@@ -316,6 +321,10 @@ class ODE(ODEComponent):
 
     def state_values(self):
         return [s.value for s in self.states]
+
+    @property
+    def LUT_name(self):
+        return [key.name for key in self.LUT_expressions]
 
     @property
     def intermediate_symbols(self):
@@ -1328,8 +1337,11 @@ class ODE(ODEComponent):
         print()
         #print(self.intermediates)
         
-
+        n = 0
         lut_expressions = {}
+        LUT_expressions = {}
+        #LUT_expressions = self.LUT_expressions
+        
         for state_symbol in self.state_symbols:
 
             d_state = self.state_expressions[self.state_symbols.index(state_symbol)]
@@ -1345,10 +1357,46 @@ class ODE(ODEComponent):
             #print(tree.root.children.sympyexpr)
 
             tree.detect_state_references(state_symbols, ode.t)
-            expr = tree.find_lut_candidates(list(candidates))
+            lut_expr_candidates = tree.find_lut_candidates(list(candidates))
 
-            lut_expressions[state_symbol] = expr
+            #print(lut_candidates)
+            
+            #lut_expressions[state_symbol] = lut_expr_candidates
+            idx = 0
+            RL_versions = ["A", "B"]
+            for key in lut_expr_candidates:
+                lut_expr_list = []
+                if len(lut_expr_candidates[key]) > 0:
+                    #print(lut_expr_candidates[key])
+                    #print(len(lut_expr_candidates[key]))
+                  
+                    lut_expressions[state_symbol] = lut_expr_candidates[key]
+                  
+                    col_idx = len(lut_expressions[state_symbol])
 
+                    #print(col_idx)
+                    for i in range(col_idx):
+                        lut_name = "lut_" + state_symbol + "RL_" + RL_versions[i]
+
+                        lut_expr_list.append(LUTExpression(lut_name, lut_expr_candidates[key][i], state_symbol, idx))
+                        idx += 1
+                    
+                    LUT_expressions[state_symbol] = lut_expr_list
+
+                    #print(a.state_symbol, a.lut_expr_index)
+                
+                #print(lut_candidates[key])
+
+            #lut_expressions[state_symbol] = expr
+            
+
+
+
+            #print(n, col_idx, lut_name, expr)
+
+            n+=1
+
+            #print(isinstance(expr, LUTExpression))
 
             #recreate_expression(expr, lut_expressions)
 
@@ -1362,10 +1410,14 @@ class ODE(ODEComponent):
 
             # lut_expressions[s] = liste med LUTExpression
 
-        self.lut_expressions = lut_expressions
-        #print("setup_lut done")
+        self.LUT_expressions = LUT_expressions
+
+
+        print("setup_lut done")
         #print(lut_expressions)
+        print(LUT_expressions)
+
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres
-        return lut_expressions
+        return 0 #LUT_expressions
 
