@@ -301,7 +301,7 @@ class ODE(ODEComponent):
         self._allow_magic_attributes = True
 
         # Dict of LUT expressions will be populated
-        #self.lut_expressions = dict()
+        self.lut_expressions = dict()
 
 
     @property
@@ -324,7 +324,7 @@ class ODE(ODEComponent):
 
     @property
     def LUT_name(self):
-        return [key.name for key in self.LUT_expressions]
+        return [key.name for key in self.lut_expressions]
 
     @property
     def intermediate_symbols(self):
@@ -1330,13 +1330,16 @@ class ODE(ODEComponent):
         comp.add_derivative(expr_obj, var_obj, der_result, dependent)
 
         return True
-    
+
+
     def setup_lut(self, candidates):
        
         #print(self.intermediates)
         
         n = 0
         LUT_expressions = {}
+        #lut_expressions = self.lut_expressions
+
         lut_expressions = {}
         #LUT_expressions = self.LUT_expressions
         
@@ -1355,7 +1358,7 @@ class ODE(ODEComponent):
             #print(tree.root.children.sympyexpr)
 
             tree.detect_state_references(state_symbols, self.t)
-            lut_expr_candidates = tree.find_lut_candidates(list(candidates))
+            lut_expr_candidates = tree.find_lut_candidates(candidates)
 
             #print(lut_candidates)
             
@@ -1406,10 +1409,14 @@ class ODE(ODEComponent):
             # lut_expressions[s] = liste med LUTExpression
 
         self.lut_expressions = lut_expressions
+        #setattr(self, "lut_expressions", lut_expressions)
+
         print("setup_lut done")
         #print(lut_expressions)
         #print(LUT_expressions)
 
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres
+
+        #return lut_expressions
 
