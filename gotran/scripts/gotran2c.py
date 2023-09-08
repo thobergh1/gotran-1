@@ -20,11 +20,21 @@ def gotran2c(filename, params):
     # Load Gotran model
     ode = load_ode(filename)
     
-    candidates = ("V", "Ca_ss")
+    candidates = ["V", "Ca_ss"]
     ode.setup_lut(candidates)
+    
+    #setattr(ode, "lut_expressions", None)
 
-    print(ode.lut_expressions)
+    #ode.lut_expressions = lut_expressions
 
+    try:
+        print()
+        print("Here")
+
+        print(ode.lut_expressions)
+
+    except AttributeError:
+        print("Object har no such attribute")
 
 
     
