@@ -114,7 +114,7 @@ class ODEComponent(ODEObject):
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
 
-        self.LUT_expressions = dict()
+        self.lut_expressions = dict()
 
 
     @property
