@@ -15,8 +15,27 @@ def gotran2c(filename, params):
     """
     timer = Timer(f"Generate C code from {filename}")
 
+
+
     # Load Gotran model
     ode = load_ode(filename)
+    
+    candidates = ("V", "Ca_ss")
+    ode.setup_lut(candidates)
+
+    print(ode.lut_expressions)
+
+
+
+    
+    
+    
+    #lut_expressions = ode.setup_lut(candidates)
+
+    #print(lut_expressions.items())
+    #print(lut_expressions.keys())
+    #print(lut_expressions.values())
+
 
     # Collect monitored
     if params.functions.monitored.generate:
@@ -26,6 +45,7 @@ def gotran2c(filename, params):
 
     # Create a C code generator
     gen = CCodeGenerator(params)
+
 
     output = params.output
 
