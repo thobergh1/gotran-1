@@ -44,6 +44,7 @@ from .expressions import (
     StateDerivative,
     StateExpression,
     StateSolution,
+    LUTExpression,
 )
 from .odeobjects import Comment, ODEObject, Parameter
 from .utils import (
@@ -112,6 +113,9 @@ class ODEComponent(ODEObject):
 
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
+
+        self.LUT_expressions = dict()
+
 
     @property
     def parent(self):
@@ -487,7 +491,7 @@ class ODEComponent(ODEObject):
         Return a list of all states in the component and its children
         """
         return [state for state in iter_objects(self, False, False, False, State)]
-
+    
     @property
     def full_states(self):
         """
