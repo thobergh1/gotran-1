@@ -36,6 +36,8 @@ from ..model.expressions import Expression
 from ..model.expressions import IndexedExpression
 from ..model.expressions import ParameterIndexedExpression
 from ..model.expressions import StateIndexedExpression
+from ..model.expressions import LUTExpression
+
 from ..model.ode import ODE
 from ..model.odeobjects import Comment
 from ..model.odeobjects import ODEObject
@@ -185,12 +187,7 @@ class BaseCodeGenerator(object):
         if include_init:
             code["init_states"] = self.init_states_code(ode, indent)
             code["init_parameters"] = self.init_parameters_code(ode, indent)
-
-        # If generate lut code
-        if include_init: #Change to inculde_lut
-            code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
-            #code["init_parameters"] = self.init_parameters_code(ode, indent)
-
+            #code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
 
         # If generate index map code
         if include_index_map:
@@ -1798,47 +1795,71 @@ class CCodeGenerator(BaseCodeGenerator):
 
         return "\n".join(self.indent_and_split_lines(function, indent=indent))
 
-
-    def init_lut_expression_code(self, ode, indent=0):
+    #def init_lut_expression_code(self, ode, indent=0):
         """
         Generating code for building lut expressions
         """
 
         
-        body_lines = []
+        #body_lines = []
 
-        states_name = self.params.code.states.array_name
-        offset = (
-            f"{states_name}_offset + " if self.params.code.states.add_offset else ""
-        )
+        #states_name = self.params.code.states.array_name
+        #offset = (
+        #    f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+        #)
 
-        enum_based_indexing = self.params.code["body"]["use_enum"]
+        #enum_based_indexing = self.params.code["body"]["use_enum"]
 
-        body_lines = [f"constexpr std::array<const univariate_func_tuple" ]
-
-        candidates = "V"
-
-        lut_expressions = ode.setup_lut(candidates)
+        #body_lines = ["constexpr std::array<const univariate_func_tuple, >28 expressions_V {"]
 
 
-        print("here")
 
-        for key in lut_expressions:
-            print(key, lut_expressions[key])
+        #candidates = "V"
 
-            body_lines.append(lut_expressions[key][candidates])
+        #lut_expressions = ode.setup_lut(candidates)
 
-        print(body_lines)
+
+        #print("here")
+
+        #for key in lut_expressions:
+            #print(key, lut_expressions[key])
+
+            #secondary_body_lines.append(lut_expressions[key][candidates])
+        #body_lines.append(secondary_body_lines)
+        #print()
+        #print(body_lines)
         # Add function prototype
-        init_function = self.wrap_body_with_function_prototype(
-            body_lines,
-            "constexpr std::array<const univariate_func_tuple, 28> expressions_V = ",
-            f"{self.float_type}* {states_name}, const long num_cells, long padded_num_cells",
-            "",
-            "Init lut values",
-        )
 
-        return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
+
+
+        #for key in lut_expressions:
+        #    third_body_lines = []
+        #    secondary_body_lines = [str(key) + ", [] double V, double dt, double *param"]
+
+        #    for elem in lut_expressions[key][candidates]:
+        #        secondary_body_lines.append(str(elem))
+            
+        #    body_lines.append("univariate_func_tuple")
+        #    body_lines.append(secondary_body_lines)
+
+        #body_lines += ["}"]
+        """
+        for key in lut_expressions:
+            secondary_body_lines = ["univariate_func_tuple{"]
+            line = "{0} double V, double dt, double *param".format(
+                key,
+            )
+            for elem in lut_expressions[key][candidates]:
+                print(elem)
+                secondary_body_lines.append(elem)
+
+            secondary_body_lines.append(line)
+
+        body_lines.append(secondary_body_lines)
+        """
+
+        #return "\n".join(self.indent_and_split_lines(body_lines, indent=indent))
+
 
 
         """
@@ -1945,6 +1966,8 @@ class CCodeGenerator(BaseCodeGenerator):
 
         expr_lines = [""]
 
+        
+
         # If named body representation we need to check for duplicates
         duplicates = set()
         declared_duplicates = set()
@@ -1959,6 +1982,42 @@ class CCodeGenerator(BaseCodeGenerator):
                         duplicates.add(expr.name)
                     else:
                         collected_names.add(expr.name)
+
+
+
+
+        #print(ODE)
+        #print(ODE.LUT_expressions)
+
+
+
+
+
+        print("Codegenerators.py")
+        for expr in comp.body_expressions:
+            if isinstance(expr, StateIndexedExpression):
+                #print(isinstance(expr.name, LUTExpression))
+                #print(expr.name)
+                #print(expr)
+                #print(expr.state)
+                
+                #print("Here")
+
+                #print(expr.expr)
+                #print(expr.value)
+                
+                #print()
+
+                if isinstance(expr, LUTExpression):
+                    print("hit")
+
+
+
+
+
+
+
+
 
 
         # Iterate over any body needed to define the dy
