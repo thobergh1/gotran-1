@@ -187,7 +187,7 @@ class BaseCodeGenerator(object):
         if include_init:
             code["init_states"] = self.init_states_code(ode, indent)
             code["init_parameters"] = self.init_parameters_code(ode, indent)
-            #code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
+            code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
 
         # If generate index map code
         if include_index_map:
@@ -1252,7 +1252,7 @@ class {0}:
             if self.ns != "np":
                 import_lines.append(f"import {self.ns}")
 
-        fmt_str = """# Gotran generated code for the "{model_name}" model
+        fmt_str = """# Gotran generated code for the "{model_name}" model \n\n
 {imports}
 
 {main_body}
@@ -1551,7 +1551,7 @@ class CCodeGenerator(BaseCodeGenerator):
         member_lines = [
             f"{indent_str}{self._state_enum_val(state)}," for state in ode.full_states
         ]
-        enum = ["enum state {"]
+        enum = ["\n\nenum state {"]
         enum.extend(member_lines)
         enum.append(f"{indent_str}NUM_STATES,")
         enum.append("};")
@@ -1795,75 +1795,64 @@ class CCodeGenerator(BaseCodeGenerator):
 
         return "\n".join(self.indent_and_split_lines(function, indent=indent))
 
-    #def init_lut_expression_code(self, ode, indent=0):
+    def init_lut_expression_code(self, ode, indent=0):
         """
         Generating code for building lut expressions
         """
 
-        
-        #body_lines = []
+        body_lines = []
 
-        #states_name = self.params.code.states.array_name
-        #offset = (
-        #    f"{states_name}_offset + " if self.params.code.states.add_offset else ""
-        #)
+        states_name = self.params.code.states.array_name
+        offset = (
+            f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+        )
 
-        #enum_based_indexing = self.params.code["body"]["use_enum"]
+        enum_based_indexing = self.params.code["body"]["use_enum"]
 
-        #body_lines = ["constexpr std::array<const univariate_func_tuple, >28 expressions_V {"]
-
+        body_lines = ["constexpr std::array<const univariate_func_tuple, 28> expressions_V  ="]
 
 
-        #candidates = "V"
+        lut_expr = ode._lut_expressions
+        candidates = ode._candidates      
 
-        #lut_expressions = ode.setup_lut(candidates)
-
-
-        #print("here")
-
-        #for key in lut_expressions:
-            #print(key, lut_expressions[key])
-
-            #secondary_body_lines.append(lut_expressions[key][candidates])
-        #body_lines.append(secondary_body_lines)
-        #print()
-        #print(body_lines)
-        # Add function prototype
-
-
-
-        #for key in lut_expressions:
-        #    third_body_lines = []
-        #    secondary_body_lines = [str(key) + ", [] double V, double dt, double *param"]
-
-        #    for elem in lut_expressions[key][candidates]:
-        #        secondary_body_lines.append(str(elem))
-            
-        #    body_lines.append("univariate_func_tuple")
-        #    body_lines.append(secondary_body_lines)
-
-        #body_lines += ["}"]
         """
-        for key in lut_expressions:
-            secondary_body_lines = ["univariate_func_tuple{"]
-            line = "{0} double V, double dt, double *param".format(
-                key,
-            )
-            for elem in lut_expressions[key][candidates]:
-                print(elem)
-                secondary_body_lines.append(elem)
-
-            secondary_body_lines.append(line)
+        secondary_body_lines = []
+        for i in range(len(candidates)):
+            for key in lut_expr:
+                line = "univariate_func_tuple { " + '"' + str(key) + '"' + ", [] double V, double dt, double *param {\n"
+                count = 0
+                for elem in lut_expr[key]:
+                    line += "      double {0} = {1}; \n".format("lut_expr_" + str(count), elem)
+                    count += 1
+                line += " }},"
+                secondary_body_lines.append(line)
 
         body_lines.append(secondary_body_lines)
         """
+ 
+        secondary_body_lines = []
+        lut_version = ["A", "B"]
+        for key in lut_expr:
+            count = 0
+            for elem in lut_expr[key]:
+                line = "univariate_func_tuple { " + '"' + str(key) + "_" + str(lut_version[count]) \
+                        + '"' + ", [] double V, double dt, double *param {\n"
+                line += "      lut_expr = {0}; \n".format(elem)
+                line += "      return lut_expr * dt; \n"
+                line += "  }},"
+                secondary_body_lines.append(line)
+                count += 1
 
-        #return "\n".join(self.indent_and_split_lines(body_lines, indent=indent))
+        body_lines.append(secondary_body_lines)
+        print(body_lines)
+    
+        return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))
 
 
 
-        """
-        def LUT_enum_code(self, ode, indent=0):
+
+    """        
+    def LUT_enum_code(self, ode, indent=0):
     
         #Generate enum for LUT state variables
 
@@ -1876,8 +1865,7 @@ class CCodeGenerator(BaseCodeGenerator):
         enum.append(f"LUT_INDEX_{indent_str}")
         enum.append("};")
         return "\n".join(enum)
-        """
-
+    """
 
 
 
@@ -1987,7 +1975,9 @@ class CCodeGenerator(BaseCodeGenerator):
 
 
         #print(ODE)
-        #print(ODE.LUT_expressions)
+        #lut_expr = self.LUT_Expressions
+
+        #print(lut_expr)
 
 
 
@@ -2199,10 +2189,7 @@ class CCodeGenerator(BaseCodeGenerator):
         )
 
     def module_code(self, ode, monitored=None):
-        return """//Gotran generated C/C++ code for the "{0}" model
-
-{1}
-""".format(
+        return """//Gotran generated C/C++ code for the "{0}" model{1}""".format(
             ode.name,
             "\n\n".join(list(self.code_dict(ode, monitored=monitored).values())),
         )
