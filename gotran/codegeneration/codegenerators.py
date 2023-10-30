@@ -1809,7 +1809,7 @@ class CCodeGenerator(BaseCodeGenerator):
 
         enum_based_indexing = self.params.code["body"]["use_enum"]
 
-        body_lines = ["constexpr std::array<const univariate_func_tuple, 28> expressions_V  ="]
+        body_lines = ["constexpr std::array<const univariate_func_tuple, 20> expressions_V  ="]
 
 
         lut_expr = ode._lut_expressions
@@ -1824,10 +1824,13 @@ class CCodeGenerator(BaseCodeGenerator):
                 for elem in lut_expr[key]:
                     line += "      double {0} = {1}; \n".format("lut_expr_" + str(count), elem)
                     count += 1
+                line += "      double lut_new_expr = lut_old_expr * dt; \n"
+                line += "      return lut_new_expr; \n"
                 line += " }},"
                 secondary_body_lines.append(line)
 
         body_lines.append(secondary_body_lines)
+
         """
  
         secondary_body_lines = []
@@ -1836,17 +1839,19 @@ class CCodeGenerator(BaseCodeGenerator):
             count = 0
             for elem in lut_expr[key]:
                 line = "univariate_func_tuple { " + '"' + str(key) + "_" + str(lut_version[count]) \
-                        + '"' + ", [] double V, double dt, double *param {\n"
-                line += "      lut_expr = {0}; \n".format(elem)
-                line += "      return lut_expr * dt; \n"
+                        + '"' + ", [] (double V, double dt, double *param) {\n"
+                line += "      return dt*{0}; \n".format(elem)
                 line += "  }},"
                 secondary_body_lines.append(line)
                 count += 1
 
         body_lines.append(secondary_body_lines)
-        print(body_lines)
+        #print(body_lines)
+
+
+        return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))+";"
     
-        return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))
+        #return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))
 
 
 
