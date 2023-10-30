@@ -9,6 +9,7 @@ from gotran.codegeneration.codegenerators import CCodeGenerator
 from gotran.model.loadmodel import load_ode
 
 
+
 def gotran2c(filename, params):
     """
     Create a C header file from a gotran model
@@ -20,25 +21,37 @@ def gotran2c(filename, params):
     # Load Gotran model
     ode = load_ode(filename)
     
-    candidates = ["V", "Ca_ss"]
+    candidates = ["V", "h"]
     ode.setup_lut(candidates)
     
     #setattr(ode, "lut_expressions", None)
 
     #ode.lut_expressions = lut_expressions
 
-    try:
-        print()
-        print("Here")
-
-        print(ode.lut_expressions)
-
-    except AttributeError:
-        print("Object har no such attribute")
+    #try:
+    #    print()
+    #    print("Here")
+    #    print(ode._lut_expressions)
+    #except AttributeError:
+    #    print("Object har no such attribute")
 
 
-    
-    
+    lut_expressions = ode._lut_expressions
+
+    #print(lut_expressions)
+    #print()
+    expressions_V = []
+    expressions_Ca = []
+
+
+    #for cand in candidates:
+    #    for state in ode.state_symbols:
+    #        print(lut_expressions[state])
+
+    #print(ode._lut_expressions["V"])
+
+
+    #lut_V(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters)
     
     #lut_expressions = ode.setup_lut(candidates)
 
@@ -55,18 +68,20 @@ def gotran2c(filename, params):
 
     # Create a C code generator
     gen = CCodeGenerator(params)
+    
+    #gen.init_lut_expression_code(ode)
 
 
     output = params.output
 
     if output:
-        if not (output.endswith(".c") or output.endswith(".h")):
+        if not (output.endswith(".c") or output.endswith(".h") or output.endswith(".hpp")):
             output += ".h"
     else:
         output = filename.replace(".ode", "") + ".h"
 
     info("")
-    info(f"Generating C code for the {ode.name} ode...")
+    info(f"Generating C code for the {ode.name} ode...\n \n")
     code = gen.module_code(ode, monitored=monitored)
     info("  done.")
     with open(output, "w") as f:
@@ -74,7 +89,13 @@ def gotran2c(filename, params):
             f.write("#include <math.h>\n")
             f.write("#include <string.h>\n")
             f.write("#include <omp.h>\n")            
+            f.write('#include <array>\n')
+            f.write('#include <stdlib.h>\n')
             f.write('#include "cellmodel.h"\n')
+            f.write('#include "cellmodel_lut.hpp"\n')
+
+            f.write('\n#include <iostream>\n')
+            f.write('using namespace std;\n')
 
         f.write(code)
 
