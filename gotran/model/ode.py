@@ -18,6 +18,7 @@
 __all__ = ["ODE"]
 
 import weakref
+import re
 from collections import defaultdict
 from functools import cmp_to_key
 
@@ -34,6 +35,10 @@ from modelparameters.sympytools import sp
 from modelparameters.utils import Timer, check_arg
 from modelparameters.sympy.core.function import AppliedUndef
 from modelparameters.sympy.core.function import UndefinedFunction
+from modelparameters.sympy.core.function import sympify
+from sympy import exp, Pow, ccode, parse_expr
+
+
 
 
 
@@ -173,14 +178,21 @@ def pre_order(node, lut_candidates):
                     duplicate = True
 
             if not duplicate and node.parent.depth == 1:
+                if evaluate_expr(node.sympyexpr):                
+                    str_expr = str(node.sympyexpr)                
+                    subs_V_expr = str_expr.replace("V(t)","V")
 
-                #print("Here", node.sympyexpr)
-                valid_expr = evaluate_expr(node.sympyexpr)
-                
-                for expr in valid_expr:
-                    
-                    lut_candidates[s_str].append(expr)
-                
+
+                    # Parse the C/C++ expression using SymPy
+                    sympy_expression = parse_expr(subs_V_expr)
+
+                    # Convert the SymPy expression to a Python expression
+                    cpp_expression = ccode(sympy_expression)
+                    print("c/cpp expr:", cpp_expression)
+
+
+                    lut_candidates[s_str].append(cpp_expression)
+
 
 
                     #col_idx = len(lut_candidates[s_str])
@@ -188,7 +200,7 @@ def pre_order(node, lut_candidates):
                     #LUTExpression(lut_name, expr, s_str, col_idx)
                     
                     #print(col_idx)
-                #print(lut_expr)
+                    #print(lut_expr)
 
 
     for child in node.children:
@@ -196,22 +208,24 @@ def pre_order(node, lut_candidates):
     
     
 
-def evaluate_expr(expr):
-    good_expressions = []
-       
+def evaluate_expr(expr):    
     def isPiecewise(expr):
         if expr.is_Piecewise:
             return True
-
+        
         for arg in expr.args:
             return isPiecewise(arg)
         
+    def isExhaustiveEnough(expr):
+        expr = sympify(str(expr))
+        if expr.find(Pow):
+            return True
+        elif expr.find(exp):
+            return True
            
     if not isPiecewise(expr):
-        good_expressions.append(expr)
-        
-    
-    return good_expressions
+        if isExhaustiveEnough(expr):
+            return True
 
 
 class ODE(ODEComponent):
@@ -300,8 +314,7 @@ class ODE(ODEComponent):
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
 
-        # Dict of LUT expressions will be populated
-        self.lut_expressions = dict()
+        #self._lut_expressions = dict()
 
 
     @property
@@ -323,12 +336,12 @@ class ODE(ODEComponent):
         return [s.value for s in self.states]
 
     @property
-    def LUT_name(self):
-        return [key.name for key in self.lut_expressions]
-
-    @property
     def intermediate_symbols(self):
         return [i.name for i in self.intermediates]
+    
+    @property
+    def LUT_Expressions(self): 
+        return self._lut_expressions
     
     @property
     def ns(self):
@@ -1337,10 +1350,11 @@ class ODE(ODEComponent):
         #print(self.intermediates)
         
         n = 0
-        LUT_expressions = {}
-        #lut_expressions = self.lut_expressions
-
         lut_expressions = {}
+        #lut_expressions = self._lut_expressions
+
+        
+        #LUT_expressions = {}
         #LUT_expressions = self.LUT_expressions
         
         for state_symbol in self.state_symbols:
@@ -1359,42 +1373,34 @@ class ODE(ODEComponent):
 
             tree.detect_state_references(state_symbols, self.t)
             lut_expr_candidates = tree.find_lut_candidates(candidates)
-
-            #print(lut_candidates)
+ 
+            #print(lut_expr_candidates)
             
             #lut_expressions[state_symbol] = lut_expr_candidates
-            idx = 0
-            RL_versions = ["A", "B"]
+            #idx = 0
+            #RL_versions = ["A", "B"]
             for key in lut_expr_candidates:
-                lut_expr_list = []
+                #lut_expr_list = []
                 if len(lut_expr_candidates[key]) > 0:
-                    #print(lut_expr_candidates[key])
                     #print(len(lut_expr_candidates[key]))
+                    #LUT_expressions[state_symbol] = lut_expr_candidates[key]
+                    lut_expressions[state_symbol] = lut_expr_candidates[key]
                   
-                    LUT_expressions[state_symbol] = lut_expr_candidates[key]
-                  
-                    col_idx = len(LUT_expressions[state_symbol])
+                    col_idx = len(lut_expressions[state_symbol])
 
                     #print(col_idx)
-                    for i in range(col_idx):
-                        lut_name = "lut_" + state_symbol + "RL_" + RL_versions[i]
+                    #for i in range(col_idx):
+                        #lut_name = "lut_" + state_symbol + "RL_" + RL_versions[i]
 
-                        lut_expr_list.append(LUTExpression(lut_name, lut_expr_candidates[key][i], state_symbol, idx))
-                        idx += 1
-                    
-                    lut_expressions[state_symbol] = lut_expr_list
+                        #lut_expr_list.append(LUTExpression(lut_name, lut_expr_candidates[key][i], state_symbol, idx))
+                        #idx += 1
+                    #lut_expressions[state_symbol] = lut_expr_list
 
                     #print(a.state_symbol, a.lut_expr_index)
                 #print(lut_candidates[key])
             #lut_expressions[state_symbol] = expr
-            
-
-
-
             #print(n, col_idx, lut_name, expr)
-
             n+=1
-
             #print(isinstance(expr, LUTExpression))
             #recreate_expression(expr, lut_expressions)
 
@@ -1408,11 +1414,14 @@ class ODE(ODEComponent):
 
             # lut_expressions[s] = liste med LUTExpression
 
-        self.lut_expressions = lut_expressions
+        self._lut_expressions = lut_expressions
+        self._candidates = candidates
         #setattr(self, "lut_expressions", lut_expressions)
 
-        print("setup_lut done")
+        print("setup_lut() done")
         #print(lut_expressions)
+        #print(self._lut_expressions)
+
         #print(LUT_expressions)
 
 
