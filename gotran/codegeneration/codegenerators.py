@@ -37,6 +37,7 @@ from ..model.expressions import IndexedExpression
 from ..model.expressions import ParameterIndexedExpression
 from ..model.expressions import StateIndexedExpression
 from ..model.expressions import LUTExpression
+from ..model.expressions import Intermediate
 
 from ..model.ode import ODE
 from ..model.odeobjects import Comment
@@ -170,6 +171,8 @@ class BaseCodeGenerator(object):
             try:
                 code["states_enum"] = self.states_enum_code(ode, indent)
                 code["parameters_enum"] = self.parameters_enum_code(ode, indent)
+                code["lut_enum"] = self.lut_enum_code(ode, indent)
+
                 if monitored is not None:
                     code["monitor_enum"] = self.monitored_enum_code(monitored, indent)
                     self._monitored_index_to_name = {
@@ -311,7 +314,7 @@ class BaseCodeGenerator(object):
 
         # Create code snippest of all
         code.update(
-            (comp.function_name, self.function_code(comp, indent=indent))
+            (comp.function_name, self.function_code(comp, ode, indent=indent))
             for comp in comps
         )
 
@@ -1799,6 +1802,9 @@ class CCodeGenerator(BaseCodeGenerator):
         """
         Generating code for building lut expressions
         """
+        
+        lut_expr = ode._lut_expressions
+        candidates = ode._candidates   
 
         body_lines = []
 
@@ -1809,11 +1815,14 @@ class CCodeGenerator(BaseCodeGenerator):
 
         enum_based_indexing = self.params.code["body"]["use_enum"]
 
-        body_lines = ["constexpr std::array<const univariate_func_tuple, 20> expressions_V  ="]
+        num_expressions = 0
+        for key, value in lut_expr.items():
+            num_expressions+= len(value)
+        
+        body_lines = [f"constexpr std::array<const univariate_func_tuple, {num_expressions} > expressions_V  ="]
 
 
-        lut_expr = ode._lut_expressions
-        candidates = ode._candidates      
+   
 
         """
         secondary_body_lines = []
@@ -1856,27 +1865,27 @@ class CCodeGenerator(BaseCodeGenerator):
 
 
 
-    """        
-    def LUT_enum_code(self, ode, indent=0):
+           
+    def lut_enum_code(self, ode, indent=0):
     
         #Generate enum for LUT state variables
 
         indent_str = self.indent * " "
         member_lines = [
-            f"{indent_str}{self._state_enum_val(state)}," for state in ode.full_states
+            f"{indent_str}LUT_INDEX_{lut_enum}," for lut_enum in ode._lut_enum_val
         ]
         enum = ["enum {"]
         enum.extend(member_lines)
-        enum.append(f"LUT_INDEX_{indent_str}")
         enum.append("};")
         return "\n".join(enum)
-    """
+    
 
 
 
     def function_code(
         self,
         comp,
+        ode,
         indent=0,
         default_arguments=None,
         include_signature=True,
@@ -1956,6 +1965,8 @@ class CCodeGenerator(BaseCodeGenerator):
                 state_lines.append(line)
             state_lines.append("")
         
+            state_lines.append(f"const auto lut_V_state = lut_V.compute_input_state(V)")
+
 
         expr_lines = [""]
 
@@ -1978,44 +1989,12 @@ class CCodeGenerator(BaseCodeGenerator):
 
 
 
-
-        #print(ODE)
-        #lut_expr = self.LUT_Expressions
-
-        #print(lut_expr)
-
-
-
-
-
-        print("Codegenerators.py")
-        for expr in comp.body_expressions:
-            if isinstance(expr, StateIndexedExpression):
-                #print(isinstance(expr.name, LUTExpression))
-                #print(expr.name)
-                #print(expr)
-                #print(expr.state)
-                
-                #print("Here")
-
-                #print(expr.expr)
-                #print(expr.value)
-                
-                #print()
-
-                if isinstance(expr, LUTExpression):
-                    print("hit")
-
-
-
-
-
-
-
-
-
-
+        initiate_lut = False
+        lookup_intermediate = False
+        
         # Iterate over any body needed to define the dy
+        n = 0
+
         for expr in comp.body_expressions:
             if isinstance(expr, Comment):
                 if comp.name == "MonitoredExpressions":
@@ -2032,9 +2011,9 @@ class CCodeGenerator(BaseCodeGenerator):
                 or isinstance(expr, StateIndexedExpression)
                 or isinstance(expr, ParameterIndexedExpression)
             ):
+                
                 if params["body"]["use_enum"]:
                     if isinstance(expr, StateIndexedExpression):
-
                         if expr.basename == "monitored":
                             name = "{0}[{1}]".format(
                                 expr.basename,
@@ -2047,6 +2026,16 @@ class CCodeGenerator(BaseCodeGenerator):
                                 expr.basename,
                                 self._state_enum_val(expr.state),
                             )
+                            
+                            #Check if state is a lut state                           
+                            if expr.state.name in ode._lut_states:
+                                initiate_lut = True
+                                lookup_intermediate = True
+                                state_name = expr.state.name
+                                
+                           
+
+
                     elif isinstance(expr, ParameterIndexedExpression):
                         name = "{0}[{1}]".format(
                             expr.basename,
@@ -2075,18 +2064,65 @@ class CCodeGenerator(BaseCodeGenerator):
                     name = f"{self.float_type} {self.obj_name(expr)}"
                     declared_duplicates.add(expr.name)
                     
-                else:
+                else:                        
                     name = f"{self.obj_name(expr)}"
 
+            
             else:
-                name = f"const {self.float_type} {self.obj_name(expr)}"
+
+                if expr.name in ode._new_intermediates:
+                    lookup_name = ode._lut_enum_val[n]
+                    name = f"const double {lookup_name}"
+                
+                elif expr.name not in ode._skip_intermediates:
+                    name = f"const {self.float_type} {self.obj_name(expr)}"
+                
 
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
             else:
-                state_lines.append(self.to_code(expr.expr, name))
+                if initiate_lut:
+                    
+                    new_state_expr = ode._new_state_expr[state_name]
 
-        if comp.name != "MonitoredExpressions":
+                    state_lines.append(self.to_code(new_state_expr, name))
+                    initiate_lut = False
+
+                elif expr.name in ode._new_intermediates:
+                    lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+                    state_lines.append(self.to_code(lookup_expr, name))
+                    n+=1
+
+                elif expr.name not in ode._skip_intermediates:
+                    state_lines.append(self.to_code(expr.expr, name))
+
+
+            """
+            else:
+                if lookup_intermediate:
+                    for lookup_name in ode._lut_enum_val[state_name]:
+                        line = f"const double {lookup_name} = lookup(thingy, thangy, mongo)"
+                        state_lines.append(line)
+                    lookup_intermediate = False
+                else:
+                    name = f"HERE const {self.float_type} {self.obj_name(expr)}"
+
+            if comp.name == "MonitoredExpressions":
+                body_lines.append(self.to_code(expr.expr, name))
+            else:
+                if initiate_lut:
+                    new_state_expr = ode._new_state_expr[state_name]
+                    state_lines.append(self.to_code(new_state_expr, name))
+                    initiate_lut = False
+            
+                else:
+                    if not lookup_intermediate:
+                        state_lines.append(self.to_code(expr.expr, name))
+            """
+
+
+
+        if comp.name != "MonitoredExpressions": 
             parameter_lines.append(state_lines)
             body_lines.append(parameter_lines)
 
@@ -2097,7 +2133,7 @@ class CCodeGenerator(BaseCodeGenerator):
         if include_signature:
             # Add function prototype
             if comp.name != "MonitoredExpressions":
-                parallel_args = ", const long num_cells, long padded_num_cells"
+                parallel_args = ",\n const long num_cells, long padded_num_cells, LUT_type &lut_V"
             else:
                 parallel_args = ""
             body_lines = self.wrap_body_with_function_prototype(
@@ -2107,6 +2143,7 @@ class CCodeGenerator(BaseCodeGenerator):
                 "",
                 comp.description,
             )
+
 
         return "\n".join(self.indent_and_split_lines(body_lines, indent=indent))
 
@@ -2151,6 +2188,7 @@ class CCodeGenerator(BaseCodeGenerator):
                 self.function_code(
                     comp,
                     indent,
+                    ode,
                     default_arguments,
                     include_signature=False,
                     return_body_lines=True,
