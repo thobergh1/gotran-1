@@ -1447,18 +1447,18 @@ class ODE(ODEComponent):
 
 
 
-        print(skip_intermediates)
+        #print(skip_intermediates)
 
 
-        print(lut_enum_val)
+        #print(lut_enum_val)
 
         #print(candidates)
 
-        print("setup_lut() done")
-        print()
-        print("lut expressions:", lut_expressions)
-        print()
-        print("state expressions:", new_state_expr)
+        print("\nSetup LUT done")
+        #print()
+        #print("lut expressions:", lut_expressions)
+        #print()
+        #print("state expressions:", new_state_expr)
 
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres
