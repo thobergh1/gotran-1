@@ -197,6 +197,8 @@ class BaseCodeGenerator(object):
             code["state_indices"] = self.state_name_to_index_code(ode, indent)
             code["parameter_indices"] = self.param_name_to_index_code(ode, indent)
 
+
+        
         comps = []
 
         # Code for the right hand side evaluation?
@@ -327,6 +329,9 @@ class BaseCodeGenerator(object):
             mass = self.mass_matrix(ode, indent=indent)
             if mass is not None:
                 code["mass_matrix"] = mass
+
+
+        code["init_setup_model"] = self.setup_model(indent)
 
         return code
 
@@ -1879,6 +1884,42 @@ class CCodeGenerator(BaseCodeGenerator):
         enum.append("};")
         return "\n".join(enum)
     
+
+    def setup_model(self, indent = 0):
+
+        
+        lines = ["""
+std::vector<univariate_func>
+expressions_tuple_to_func_vector(std::vector<univariate_func_tuple> e_tuple_vec)
+{
+    std::vector<univariate_func> e_func_vec(e_tuple_vec.size());
+    for (size_t i = 0; i < e_tuple_vec.size(); i++) {
+        e_func_vec[i] = e_tuple_vec[i].f;
+    }
+    return e_func_vec;
+}
+
+const std::vector<univariate_func_tuple> expressions_V_tuple_vec(expressions_V.begin(),
+                                                                expressions_V.end());
+
+const std::vector<univariate_func> expressions_V_vec =
+        expressions_tuple_to_func_vector(expressions_V_tuple_vec);
+
+
+const struct cellmodel_lut model_lut = {
+        &init_state_values,
+        &init_parameters_values,
+        &state_index,
+        &parameter_index,
+        &forward_explicit_euler<default_LUT_type>,
+        NUM_STATES,
+        NUM_PARAMS,
+        &expressions_V_vec,
+};
+"""]
+
+        return "\n".join(self.indent_and_split_lines(lines, indent=0, no_line_ending=True))
+
 
 
 
