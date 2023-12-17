@@ -114,7 +114,6 @@ class ODEComponent(ODEObject):
         # Turn on magic attributes (see __setattr__ method)
         self._allow_magic_attributes = True
 
-        self.lut_expressions = dict()
 
 
     @property
@@ -533,24 +532,6 @@ class ODEComponent(ODEObject):
         return sorted(
             (obj for obj in iter_objects(self, False, False, False, StateExpression))
         )
-    
-
-    @property
-    def lut_expressions(self):
-        """
-        Return a dict of lut expressions
-        """
-        #lut_dict = self......
-        #lut_dict = self.state_expressions
-
-        #lut_dict = self.lut_expressions
-        
-        for key in self.lut_expressions:
-            print(key)
-
-
-        return 0 #lut_dict
-    
 
 
     @property
