@@ -18,7 +18,6 @@
 #include "lut/ExpressionLUT.cpp"
 
 
-
 // #include "bench.h"
 // #include "bench_util.h"
 // #include "rng.h"
@@ -63,42 +62,51 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
   int it, j;
 
 
-  int num_cells = 1000;
+  int num_cells = 10;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
+
   unsigned int num_states = NUM_STATES;
   unsigned int num_parameters = NUM_PARAMS;
   size_t states_size = num_states * sizeof(double) *padded_num_cells;
-  size_t parameters_size = num_parameters * sizeof(double);
+  //size_t parameters_size = num_parameters * sizeof(double);
 
 
   cellmodel_float_t *states = (cellmodel_float_t *) aligned_alloc(alignment_bytes, states_size);
   //cellmodel_float_t *parameters = (cellmodel_float_t *) malloc(parameters_size);
 
-
-
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
 
   printf("\n");
-  printf("Num expressions (V) : %lu\n\n", expressions_V.size());
+  printf("Num expressions (V): %lu\n\n", expressions_V.size());
 
 
-  double T_end = 1000;
-  double solve_dt = 1E-3;
+  double T_end = 100;
+  double solve_dt = 0.01;
   int store_period = 1;
   double V_min = -100;
   double V_max = 100;
   double V_step = 0.05;  
-  
+
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
+
+  /*
+
+  double lookup_value;
+  for(int V = 0; V < 100; V++){
+    auto lut_V_state = lut_V.compute_input_state(V);
+    for(int i = 0; i<100; i++){
+      lookup_value = lut_V.lookup(i, lut_V_state);
+      printf("%g\n", lookup_value);}}
+  */
 
 
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
     forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-    printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
+    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
 
     for (j=0; j < NUM_STATES; j++) {
       u_values[save_it*NUM_STATES + j] = u[j];
@@ -115,8 +123,6 @@ void ode_solve_rush_larsen(double* u, const double* parameters,
   double t;
   int save_it = 1;
   int it, j;
-
-
 
   int num_cells = 8;
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
@@ -157,6 +163,9 @@ int main(int argc, char *argv[])
 {
   double t_start = 0;
   double dt = 0.0001;
+  //double dt = 0.01;
+  
+  
   int num_timesteps = (int) 5;
   if (argc > 1) {
     num_timesteps = atoi(argv[1]);
@@ -169,7 +178,9 @@ int main(int argc, char *argv[])
   unsigned int num_states = NUM_STATES;
   unsigned int num_parameters = NUM_PARAMS;
 
-  int num_cells = 11500000;
+  //int num_cells = 11500000;
+  int num_cells = 50;
+  
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
@@ -204,13 +215,13 @@ int main(int argc, char *argv[])
 
   //const std::vector<univariate_func> expressions_V = expressions_V;
 
-  
+  /*
   for (const auto& expr : expressions_V) {
       printf("Name: %s\n", expr.str);
       printf("Expression: %f\n", expr.f(1.0, 1.0, nullptr));
       printf("----------------------\n");
   }
-
+  */
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
 
   printf("\n");

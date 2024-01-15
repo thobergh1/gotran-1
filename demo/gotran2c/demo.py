@@ -1,22 +1,41 @@
 import os
 from ctypes import c_double
 from ctypes import c_int
+from ctypes import cdll
+
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 import time
 
+path = "~/Dokumenter/gotran/venv/gotran/demo/gotran2c"
+expanded_path = os.path.expanduser(path)
+os.chdir(expanded_path)
+
 libname = "libdemo.so"
 libdir = "."
 libpath = os.path.join(libdir, libname)
 
+
 assert os.path.isfile(libpath)
+
+"""
+nm -gC libdemo.so
+"""
+
+
+
+#libbase_model = cdll[libpath]
 libbase_model = np.ctypeslib.load_library(libname, libdir)
+
 
 # Get number of states and parameters from the C library
 num_states = libbase_model.state_count()
 num_parameters = libbase_model.parameter_count()
+
+#print(num_states)
+#print(num_parameters)
 
 
 def init_lib():
@@ -39,7 +58,7 @@ def init_lib():
 
     solve_functions = [
         libbase_model.ode_solve_forward_euler,
-        libbase_model.ode_solve_rush_larsen,
+        #libbase_model.ode_solve_rush_larsen,
     ]
 
     for func in solve_functions:
@@ -62,7 +81,10 @@ def init_parameters():
 
 def solve(t_start, t_end, dt, num_steps=None, method="fe"):
     parameters = init_parameters()
+    
+    print("Here", type(dt))
 
+    
     if type(dt) is not float:
         dt = float(dt)
     if num_steps is not None:
@@ -104,10 +126,10 @@ def solve(t_start, t_end, dt, num_steps=None, method="fe"):
 
 
 def main():
-    N = 20
+    N = 1
     t_start = 0.0
-    t_end = 400.0
-    dt = 0.001
+    t_end = 15.0
+    dt = 0.01
     total = 0
     for i in range(N):
         start = time.time()
@@ -115,12 +137,15 @@ def main():
         end = time.time()
         total += end-start
         print(end-start)
+
     print("")
     print(total/N)
+
     V_idx = libbase_model.state_index("V")
-    
-    # print(u_values[0:10])
-    # plt.plot(t_values, u_values[:])
+    for val in u_values[V_idx]:
+        print(val)
+    print(u_values[0:10])
+    plt.plot(t_values, u_values[:])
 
     fig, ax = plt.subplots()
     ax.plot(t_values, u_values[:, V_idx])

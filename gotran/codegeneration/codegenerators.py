@@ -1291,6 +1291,8 @@ class CCodeGenerator(BaseCodeGenerator):
         self.params.code.float_precision,
     )
     float_types = dict(single="float", double="double")
+    #float_types = dict(single="cellmodel_float_t", double="cellmodel_float_t")
+
 
     def obj_name(self, obj):
         assert isinstance(obj, ODEObject)
@@ -1639,7 +1641,7 @@ class CCodeGenerator(BaseCodeGenerator):
             "init_state_values",
             f"{self.float_type}* {states_name}, const long num_cells, long padded_num_cells",
             "",
-            "Init state values",
+            'Init state values \nextern "C"',
         )
 
         return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
@@ -1676,7 +1678,7 @@ class CCodeGenerator(BaseCodeGenerator):
             "init_parameters_values",
             f"{self.float_type}* {parameter_name}",
             "",
-            "Default parameter values",
+            'Default parameter values \nextern "C"',
         )
 
         return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
@@ -1716,7 +1718,7 @@ class CCodeGenerator(BaseCodeGenerator):
             "state_index",
             "const char name[]",
             "int",
-            "State index",
+            'State index \nextern "C"',
         )
 
         return "\n".join(self.indent_and_split_lines(function, indent=indent))
@@ -1760,7 +1762,7 @@ class CCodeGenerator(BaseCodeGenerator):
             "parameter_index",
             "const char name[]",
             "int",
-            "Parameter index",
+            'Parameter index \nextern "C"',
         )
 
         return "\n".join(self.indent_and_split_lines(function, indent=indent))
@@ -2006,7 +2008,32 @@ const struct cellmodel_lut model_lut = {
                 state_lines.append(line)
             state_lines.append("")
         
-            state_lines.append(f"const auto lut_V_state = lut_V.compute_input_state(V)")
+            state_lines.append(f'const auto lut_V_state = lut_V.compute_input_state(V)')
+            
+            
+            #state_lines.append('double AA = STATE_m * padded_num_cells + i')
+            
+            #state_lines.append('std::cout << "i :" << i << " | AA:" << AA<< std::endl')
+            #state_lines.append('std::cout << "paddded: " << padded_num_cells << std::endl')
+
+            #state_lines.append('std::cout << "i :" << i << std::endl')
+            #state_lines.append('std::cout << "AA:" << AA << std::endl')
+            #state_lines.append('std::cout << "paddded: " << padded_num_cells << std::endl')
+            #state_lines.append('std::cout << "V:" << V << std::endl')
+
+
+
+
+            #state_lines.append(f'std::cout << "ra-" << lut_V_state.row_above << std::endl')
+            #state_lines.append(f'std::cout << "rb-" << lut_V_state.row_below << std::endl')
+            #state_lines.append(f'std::cout << "wa-" << lut_V_state.weight_above << std::endl')
+            #state_lines.append(f'std::cout << "wb-"<< lut_V_state.weight_below << std::endl')
+
+
+
+            
+            #state_lines.append('std::cout << "m_A: " << lut_V.lookup(LUT_INDEX_m_A, lut_V_state) << std::endl')
+
 
 
         expr_lines = [""]
@@ -2131,13 +2158,14 @@ const struct cellmodel_lut model_lut = {
 
                 elif expr.name in ode._new_intermediates:
                     lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+
                     state_lines.append(self.to_code(lookup_expr, name))
                     n+=1
 
                 elif expr.name not in ode._skip_intermediates:
                     state_lines.append(self.to_code(expr.expr, name))
 
-
+            
             """
             else:
                 if lookup_intermediate:
