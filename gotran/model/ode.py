@@ -1435,6 +1435,12 @@ class ODE(ODEComponent):
             lut_states.append(key)
             #lut_states.append(str("STATE_" + key))
 
+        for key in new_state_expr:
+            replace_expr = str(new_state_expr[key]).replace("(t)", "")
+            new_state_expr[key] = replace_expr
+        
+        print(lut_expressions)
+
         #print(lut_states)
                 
         self._lut_expressions = lut_expressions
