@@ -63,7 +63,7 @@ def init_lib():
 
     for func in solve_functions:
         func.restype = None  # void
-        func.argtypes = [
+        func.argtypes = [  
             float64_array,  # u
             float64_array,  # parameters
             float64_array_2d,  # u_values
@@ -82,7 +82,7 @@ def init_parameters():
 def solve(t_start, t_end, dt, num_steps=None, method="fe"):
     parameters = init_parameters()
     
-    print("Here", type(dt))
+    #print("Here", type(dt))
 
     
     if type(dt) is not float:
@@ -126,32 +126,36 @@ def solve(t_start, t_end, dt, num_steps=None, method="fe"):
 
 
 def main():
-    N = 1
+    N = 10
     t_start = 0.0
-    t_end = 15.0
+    t_end = 40.0
     dt = 0.01
     total = 0
+
     for i in range(N):
         start = time.time()
         t_values, u_values = solve(t_start, t_end, dt, method="fe")
         end = time.time()
         total += end-start
-        print(end-start)
+        print("Time: ", end-start)
 
     print("")
     print(total/N)
 
     V_idx = libbase_model.state_index("V")
-    for val in u_values[V_idx]:
-        print(val)
-    print(u_values[0:10])
-    plt.plot(t_values, u_values[:])
+    #print("V idx: ", V_idx)
+    #for val in u_values[V_idx]:
+    #    print(val)
+    #print(np.shape(u_values))
+    #print(u_values[0:10])
 
     fig, ax = plt.subplots()
-    ax.plot(t_values, u_values[:, V_idx])
+    ax.plot(t_values[1:], u_values[1:, V_idx])
     ax.set_title("Membrane potential")
     ax.set_xlabel("Time (ms)")
     plt.show()
+    
+    
 
 
 if __name__ == "__main__":
