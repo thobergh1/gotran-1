@@ -21,44 +21,14 @@ def gotran2c(filename, params):
     # Load Gotran model
     ode = load_ode(filename)
     
+
+   
     candidates = ["V", "h"]
     ode.setup_lut(candidates)
-    
-    #setattr(ode, "lut_expressions", None)
-
-    #ode.lut_expressions = lut_expressions
-
-    #try:
-    #    print()
-    #    print("Here")
-    #    print(ode._lut_expressions)
-    #except AttributeError:
-    #    print("Object har no such attribute")
-
-
     lut_expressions = ode._lut_expressions
-
-    #print(lut_expressions)
-    #print()
     expressions_V = []
     expressions_Ca = []
-
-
-    #for cand in candidates:
-    #    for state in ode.state_symbols:
-    #        print(lut_expressions[state])
-
-    #print(ode._lut_expressions["V"])
-
-
-    #lut_V(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters)
     
-    #lut_expressions = ode.setup_lut(candidates)
-
-    #print(lut_expressions.items())
-    #print(lut_expressions.keys())
-    #print(lut_expressions.values())
-
 
     # Collect monitored
     if params.functions.monitored.generate:
@@ -69,7 +39,6 @@ def gotran2c(filename, params):
     # Create a C code generator
     gen = CCodeGenerator(params)
     
-    #gen.init_lut_expression_code(ode)
 
 
     output = params.output
