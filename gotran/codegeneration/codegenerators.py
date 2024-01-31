@@ -171,7 +171,8 @@ class BaseCodeGenerator(object):
             try:
                 code["states_enum"] = self.states_enum_code(ode, indent)
                 code["parameters_enum"] = self.parameters_enum_code(ode, indent)
-                code["lut_enum"] = self.lut_enum_code(ode, indent)
+                if hasattr(ode, "_lut_expressions"):
+                    code["lut_enum"] = self.lut_enum_code(ode, indent)
 
                 if monitored is not None:
                     code["monitor_enum"] = self.monitored_enum_code(monitored, indent)
@@ -190,7 +191,8 @@ class BaseCodeGenerator(object):
         if include_init:
             code["init_states"] = self.init_states_code(ode, indent)
             code["init_parameters"] = self.init_parameters_code(ode, indent)
-            code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
+            if hasattr(ode, "_lut_expressions"):
+                code["init_lut_expression"] = self.init_lut_expression_code(ode, indent)
 
         # If generate index map code
         if include_index_map:
@@ -330,8 +332,8 @@ class BaseCodeGenerator(object):
             if mass is not None:
                 code["mass_matrix"] = mass
 
-
-        code["init_setup_model"] = self.setup_model(indent)
+        if hasattr(ode, "_lut_expressions"):
+            code["init_setup_model"] = self.setup_model(indent)
 
         return code
 
@@ -2008,7 +2010,9 @@ const struct cellmodel_lut model_lut = {
                 state_lines.append(line)
             state_lines.append("")
         
-            state_lines.append(f'const auto lut_V_state = lut_V.compute_input_state(V)')
+
+            if hasattr(ode, "_lut_expressions"):
+                state_lines.append(f'const auto lut_V_state = lut_V.compute_input_state(V)')
             
             
             #state_lines.append('double AA = STATE_m * padded_num_cells + i')
@@ -2024,10 +2028,10 @@ const struct cellmodel_lut model_lut = {
 
 
 
-            #state_lines.append(f'std::cout << "ra-" << lut_V_state.row_above << std::endl')
-            #state_lines.append(f'std::cout << "rb-" << lut_V_state.row_below << std::endl')
-            #state_lines.append(f'std::cout << "wa-" << lut_V_state.weight_above << std::endl')
-            #state_lines.append(f'std::cout << "wb-"<< lut_V_state.weight_below << std::endl')
+            #state_lines.append(f'std::cout << "ra: " << lut_V_state.row_above << std::endl')
+            #state_lines.append(f'std::cout << "rb: " << lut_V_state.row_below << std::endl')
+            #state_lines.append(f'std::cout << "wa: " << lut_V_state.weight_above << std::endl')
+            #state_lines.append(f'std::cout << "wb: "<< lut_V_state.weight_below << std::endl')
 
 
 
@@ -2078,8 +2082,7 @@ const struct cellmodel_lut model_lut = {
                 isinstance(expr, IndexedExpression)
                 or isinstance(expr, StateIndexedExpression)
                 or isinstance(expr, ParameterIndexedExpression)
-            ):
-                
+            ):  
                 if params["body"]["use_enum"]:
                     if isinstance(expr, StateIndexedExpression):
                         if expr.basename == "monitored":
@@ -2095,14 +2098,14 @@ const struct cellmodel_lut model_lut = {
                                 self._state_enum_val(expr.state),
                             )
                             
-                            #Check if state is a lut state                           
-                            if expr.state.name in ode._lut_states:
-                                initiate_lut = True
-                                lookup_intermediate = True
-                                state_name = expr.state.name
+                            
+                            #Check if state is a lut state
+                            if hasattr(ode, "_lut_expressions"):                        
+                                if expr.state.name in ode._lut_states:
+                                    initiate_lut = True
+                                    lookup_intermediate = True
+                                    state_name = expr.state.name
                                 
-                           
-
 
                     elif isinstance(expr, ParameterIndexedExpression):
                         name = "{0}[{1}]".format(
@@ -2125,69 +2128,61 @@ const struct cellmodel_lut model_lut = {
                         )
                         name = f"{expr.basename}[{expr.enum}]"
                 else:
-                    name = f"{self.obj_name(expr)}"
+                    name = f"{self.obj_name(expr)}"          
 
             elif expr.name in duplicates:
                 if expr.name not in declared_duplicates:
                     name = f"{self.float_type} {self.obj_name(expr)}"
                     declared_duplicates.add(expr.name)
-                    
                 else:                        
                     name = f"{self.obj_name(expr)}"
 
             
             else:
-
-                if expr.name in ode._new_intermediates:
-                    lookup_name = ode._lut_enum_val[n]
-                    name = f"const double {lookup_name}"
-                
-                elif expr.name not in ode._skip_intermediates:
-                    name = f"const {self.float_type} {self.obj_name(expr)}"
-                
+                if hasattr(ode, "_lut_expressions"):
+                    if expr.name in ode._new_intermediates:
+                        lookup_name = ode._lut_enum_val[n]
+                        name = f"const double {lookup_name}"
+                    
+                    elif expr.name not in ode._skip_intermediates:
+                        name = f"const {self.float_type} {self.obj_name(expr)}"
+                else:
+                    name = f"const {self.float_type} {self.obj_name(expr)}"             
 
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
+
             else:
-                if initiate_lut:
-                    
-                    new_state_expr = ode._new_state_expr[state_name]
+                if hasattr(ode, "_lut_expressions"):
+                    if initiate_lut:
+                        
+                        #new_state_expr = f"dt*{ode._new_state_expr[state_name]}+{state}"
+                        #print(type(ode._new_state_expr[state_name]))
+                        
+                        new_state_expr = "dt*" + ode._new_state_expr[state_name]+"+"+state_name
 
-                    state_lines.append(self.to_code(new_state_expr, name))
-                    initiate_lut = False
+                        #new_state_expr = ode._new_state_expr[state_name]
 
-                elif expr.name in ode._new_intermediates:
-                    lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+                        state_lines.append(self.to_code(new_state_expr, name))
+                        initiate_lut = False
 
-                    state_lines.append(self.to_code(lookup_expr, name))
-                    n+=1
 
-                elif expr.name not in ode._skip_intermediates:
+                    elif expr.name in ode._new_intermediates:
+                        lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+
+                        state_lines.append(self.to_code(lookup_expr, name))
+                        n+=1
+
+                    elif expr.name not in ode._skip_intermediates:
+                        state_lines.append(self.to_code(expr.expr, name))              
+                else:
                     state_lines.append(self.to_code(expr.expr, name))
 
-            
-            """
-            else:
-                if lookup_intermediate:
-                    for lookup_name in ode._lut_enum_val[state_name]:
-                        line = f"const double {lookup_name} = lookup(thingy, thangy, mongo)"
-                        state_lines.append(line)
-                    lookup_intermediate = False
-                else:
-                    name = f"HERE const {self.float_type} {self.obj_name(expr)}"
 
-            if comp.name == "MonitoredExpressions":
-                body_lines.append(self.to_code(expr.expr, name))
-            else:
-                if initiate_lut:
-                    new_state_expr = ode._new_state_expr[state_name]
-                    state_lines.append(self.to_code(new_state_expr, name))
-                    initiate_lut = False
             
-                else:
-                    if not lookup_intermediate:
-                        state_lines.append(self.to_code(expr.expr, name))
-            """
+            
+
+
 
 
 
@@ -2202,7 +2197,12 @@ const struct cellmodel_lut model_lut = {
         if include_signature:
             # Add function prototype
             if comp.name != "MonitoredExpressions":
-                parallel_args = ",\n const long num_cells, long padded_num_cells, LUT_type &lut_V"
+                if hasattr(ode, "_lut_expressions"):
+                    parallel_args = ",\n const long num_cells, long padded_num_cells, LUT_type &lut_V"
+                else:
+                    parallel_args = ",\n const long num_cells, long padded_num_cells"
+
+
             else:
                 parallel_args = ""
             body_lines = self.wrap_body_with_function_prototype(
