@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-//#include "tentusscher_panfilov_2006_M_cell.hpp"
 #include "hodgkin_huxley.hpp"
 
+//#include "tentusscher_panfilov_2006_M_cell.hpp"
 //#include "FHN.h"
 
 #include <assert.h>
@@ -77,13 +77,15 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
   cellmodel_float_t *states = (cellmodel_float_t *) aligned_alloc(alignment_bytes, states_size);
   //cellmodel_float_t *parameters = (cellmodel_float_t *) malloc(parameters_size);
 
+
+  
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
 
   printf("\n");
   printf("Num expressions (V): %lu\n\n", expressions_V.size());
 
 
-  double T_end = 100;
+  double T_end = 40;
   double solve_dt = 0.01;
   int store_period = 1;
   double V_min = -100;
@@ -91,6 +93,7 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
   double V_step = 0.05;  
 
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
+
 
   /*
 
@@ -103,14 +106,21 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
   */
 
 
+
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
+    //forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
     forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
+
     //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
 
+    //std::cout << u[0] << u[1] << u[2] << u[3] << std::endl;
+    
     for (j=0; j < NUM_STATES; j++) {
-      u_values[save_it*NUM_STATES + j] = u[j];
+      u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
+      //std::cout << u[j] << std::endl;
     }
+    //printf("\n");
     save_it++;
   }
 }
@@ -162,8 +172,8 @@ extern "C"
 int main(int argc, char *argv[])
 {
   double t_start = 0;
-  double dt = 0.0001;
-  //double dt = 0.01;
+  //double dt = 0.0001;
+  double dt = 0.01;
   
   
   int num_timesteps = (int) 5;
@@ -178,8 +188,8 @@ int main(int argc, char *argv[])
   unsigned int num_states = NUM_STATES;
   unsigned int num_parameters = NUM_PARAMS;
 
-  //int num_cells = 11500000;
-  int num_cells = 50;
+  int num_cells = 11500000;
+  //int num_cells = 50;
   
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
@@ -222,6 +232,8 @@ int main(int argc, char *argv[])
       printf("----------------------\n");
   }
   */
+
+ 
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
 
   printf("\n");
@@ -237,12 +249,10 @@ int main(int argc, char *argv[])
   double V_min = -100;
   double V_max = 100;
   double V_step = 0.05;
-
-
-
-  
   
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
+
+ 
 
   // forward euler
   printf("Scheme: Forward Euler\n");
@@ -251,11 +261,13 @@ int main(int argc, char *argv[])
   for (it = 0; it < num_timesteps; it++) {
     //printf("%ld\n", it);
 
+    //forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
     forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells, lut_V);
     
     t += dt;
   }
 
+  
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
