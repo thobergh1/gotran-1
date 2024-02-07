@@ -1385,8 +1385,8 @@ class ODE(ODEComponent):
         lut_expressions = {}
         new_state_expr = {}
         lut_enum_val = []
-        new_intermeditates = []
-        skip_intermediates = []
+        new_intermediates = []
+        derivative_intermediates = []
         
         for state_symbol in self.state_symbols:
 
@@ -1400,17 +1400,14 @@ class ODE(ODEComponent):
             tree.detect_state_references(state_symbols, self.t)
             lut_expr_candidates, new_state_expr[state_symbol] = tree.find_lut_candidates(candidates, tree.root.sympyexpr,
                                                                                          state_symbol, lut_enum_val,
-                                                                                         new_intermeditates)
+                                                                                         new_intermediates)
             
             for key in lut_expr_candidates:
                 if len(lut_expr_candidates[key]) > 0:
                     lut_expressions[state_symbol] = lut_expr_candidates[key]
-                    skip_intermediates.append(d_state.name)
+                    derivative_intermediates.append(d_state.name)
                   
                     #col_idx = len(lut_expressions[state_symbol])
-
-
-
 
             # analyser hvilke deler av treet for state deriverte som kan passe inn i LUT
             
@@ -1426,7 +1423,7 @@ class ODE(ODEComponent):
         for key in new_state_expr:
             if new_state_expr[key] == '':
                 hit.append(key)
-        
+  
         for key in hit:
             del new_state_expr[key]
 
@@ -1439,32 +1436,50 @@ class ODE(ODEComponent):
             replace_expr = str(new_state_expr[key]).replace("(t)", "")
             new_state_expr[key] = replace_expr
         
-        print(lut_expressions)
 
+        i = 0
+        new_derivative_intermediates = {}
+        for key, val in new_state_expr.items():
+            new_derivative_intermediates[derivative_intermediates[i]] = val
+            i+=1
+
+
+
+        #print(lut_expressions)
+
+
+
+        """
+        try:
+            for state_symbol in self.state_symbols:
+                print(state_symbol)
+                print(new_state_expr[state_symbol])
+                new_state = sympify(new_state_expr[state_symbol])
+                self.state_expressions[self.state_symbols.index(state_symbol)]._replace(new_state)
+        except KeyError:
+            "   "
+        """
         #print(lut_states)
-                
+        #print(new_derivative_intermediates)
+
         self._lut_expressions = lut_expressions
-        self._new_state_expr = new_state_expr
         self._candidates = candidates
         self._lut_states = lut_states
         self._lut_enum_val = lut_enum_val
-        self._new_intermediates = new_intermeditates
-        self._skip_intermediates = skip_intermediates
+        self._new_intermediates = new_intermediates
+        self._derivative_intermediates = derivative_intermediates
 
+        self._new_derivative_intermediates = new_derivative_intermediates
 
-
-        #print(skip_intermediates)
-
-
+        #print(new_derivative_intermediates)
         #print(lut_enum_val)
-
         #print(candidates)
 
         print("\nSetup LUT done")
         #print()
         #print("lut expressions:", lut_expressions)
         #print()
-        #print("state expressions:", new_state_expr)
+        #print("state expressions:", new_derivative_state_expr)
 
 
         # nå vet vi hvilke uttrykk som skal LUTifiseres

@@ -95,11 +95,31 @@ def solve(t_start, t_end, dt, num_steps=None, method="fe"):
 
     t_values = np.linspace(t_start, t_end, num_steps + 1)
 
-    u = np.zeros(num_states, dtype=np.float64)
 
-    libbase_model.init_state_values(u)
-    u_values = np.zeros((num_steps + 1, u.shape[0]), dtype=np.float64)
-    u_values[0, :] = u[:]
+    #libbase_model.init_state_values(u)
+
+    num_cells = 10
+    padded_num_cells = 12
+
+    u = np.zeros(num_states*padded_num_cells, dtype=np.float64)
+
+
+    #num_cells = 10
+    #padded_num_cells = 12
+
+    libbase_model.init_state_values(u, num_cells, padded_num_cells)
+
+
+    print(u)
+    print(u.shape[0])
+    
+
+    u_values = np.zeros((num_steps + 1, int(u.shape[0]/padded_num_cells)), dtype=np.float64)
+    
+    for i in range(int(u.shape[0]/padded_num_cells)):
+        u_values[0, i] = u[i*padded_num_cells]
+
+    #print(u_values)
 
     if method == "fe":
         libbase_model.ode_solve_forward_euler(
@@ -129,7 +149,7 @@ def main():
     N = 10
     t_start = 0.0
     t_end = 40.0
-    dt = 0.01
+    dt = 0.001
     total = 0
 
     for i in range(N):
@@ -137,20 +157,29 @@ def main():
         t_values, u_values = solve(t_start, t_end, dt, method="fe")
         end = time.time()
         total += end-start
-        print("Time: ", end-start)
+    print("Time: ", end-start)
 
     print("")
     print(total/N)
+   
+
+
+    #t_values, u_values = solve(t_start, t_end, dt, method="fe")
+
 
     V_idx = libbase_model.state_index("V")
     #print("V idx: ", V_idx)
     #for val in u_values[V_idx]:
     #    print(val)
     #print(np.shape(u_values))
-    #print(u_values[0:10])
+
+
+
+    
+    print(u_values[0:10])
 
     fig, ax = plt.subplots()
-    ax.plot(t_values[1:], u_values[1:, V_idx])
+    ax.plot(t_values[:], u_values[:, V_idx])
     ax.set_title("Membrane potential")
     ax.set_xlabel("Time (ms)")
     plt.show()

@@ -63,61 +63,58 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
 
 
   int num_cells = 10;
+  //int num_cells = 10;
+  
+
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
   unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
           num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
+  std::cout << padded_num_cells << " padded num cells" << std::endl;
+  std::cout << num_cells << " num cells" << std::endl;
+
+  //std::cout << alignment_bytes << std::endl;
+  //std::cout << sizeof(cellmodel_float_t)  << std::endl;
+
 
   unsigned int num_states = NUM_STATES;
-  unsigned int num_parameters = NUM_PARAMS;
-  size_t states_size = num_states * sizeof(double) *padded_num_cells;
+  //unsigned int num_parameters = NUM_PARAMS;
+  //size_t states_size = num_states * sizeof(double) *padded_num_cells;
   //size_t parameters_size = num_parameters * sizeof(double);
 
 
-  cellmodel_float_t *states = (cellmodel_float_t *) aligned_alloc(alignment_bytes, states_size);
+  //cellmodel_float_t *states = (cellmodel_float_t *) aligned_alloc(alignment_bytes, states_size);
   //cellmodel_float_t *parameters = (cellmodel_float_t *) malloc(parameters_size);
 
 
-  
-  const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
-
-  printf("\n");
-  printf("Num expressions (V): %lu\n\n", expressions_V.size());
-
-
-  double T_end = 40;
-  double solve_dt = 0.01;
-  int store_period = 1;
+  //double solve_dt = 0.01;
   double V_min = -100;
   double V_max = 100;
-  double V_step = 0.05;  
+  double V_step = 0.005;  
 
-  default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
-
-
-  /*
-
-  double lookup_value;
-  for(int V = 0; V < 100; V++){
-    auto lut_V_state = lut_V.compute_input_state(V);
-    for(int i = 0; i<100; i++){
-      lookup_value = lut_V.lookup(i, lut_V_state);
-      printf("%g\n", lookup_value);}}
-  */
-
+  
+  const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
+  //default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
+  default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters);
+ 
+  printf("\n");
+  printf("Num expressions (V) : %lu\n\n", expressions_V.size());
+  
 
 
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
+    
     //forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
     forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
 
     //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
-
     //std::cout << u[0] << u[1] << u[2] << u[3] << std::endl;
     
     for (j=0; j < NUM_STATES; j++) {
+      //u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
       u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
+
       //std::cout << u[j] << std::endl;
     }
     //printf("\n");
@@ -233,26 +230,21 @@ int main(int argc, char *argv[])
   }
   */
 
+  //double solve_dt = 1E-3;
  
-  const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
-
-  printf("\n");
-  printf("Num expressions (V) : %lu\n\n", expressions_V.size());
-
-  
-
-
-  double T_end = 1000;
-  double solve_dt = 1E-3;
-  int store_period = 1;
-
   double V_min = -100;
   double V_max = 100;
   double V_step = 0.05;
-  
-  default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
 
+  
+  const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
+  //default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), solve_dt, parameters);
+  default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters);
  
+  printf("\n");
+  printf("Num expressions (V) : %lu\n\n", expressions_V.size());
+  
+
 
   // forward euler
   printf("Scheme: Forward Euler\n");

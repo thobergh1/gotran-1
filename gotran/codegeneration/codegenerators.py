@@ -52,6 +52,7 @@ from .algorithmcomponents import rhs_expressions
 from .codecomponent import CodeComponent
 from .solvercomponents import *  # noqa: F403, F401
 from .solvercomponents import get_solver_fn
+import sympy
 
 # System imports
 # Gotran imports
@@ -204,6 +205,8 @@ class BaseCodeGenerator(object):
         comps = []
 
         # Code for the right hand side evaluation?
+
+        """
         if functions.rhs.generate:
             comps.append(
                 rhs_expressions(
@@ -213,6 +216,7 @@ class BaseCodeGenerator(object):
                     params=self.params.code,
                 ),
             )
+        """
 
         # Code for any monitored intermediates
         if monitored and functions.monitored.generate:
@@ -1943,7 +1947,6 @@ const struct cellmodel_lut model_lut = {
         check_arg(comp, CodeComponent)
         check_kwarg(default_arguments, "default_arguments", str)
         check_kwarg(indent, "indent", int)
-
         
         if comp.name == "MonitoredExpressions":
             body_lines = self._init_arguments(comp)
@@ -2026,8 +2029,6 @@ const struct cellmodel_lut model_lut = {
             #state_lines.append('std::cout << "V:" << V << std::endl')
 
 
-
-
             #state_lines.append(f'std::cout << "ra: " << lut_V_state.row_above << std::endl')
             #state_lines.append(f'std::cout << "rb: " << lut_V_state.row_below << std::endl')
             #state_lines.append(f'std::cout << "wa: " << lut_V_state.weight_above << std::endl')
@@ -2065,8 +2066,7 @@ const struct cellmodel_lut model_lut = {
         lookup_intermediate = False
         
         # Iterate over any body needed to define the dy
-        n = 0
-
+        n = 0    
         for expr in comp.body_expressions:
             if isinstance(expr, Comment):
                 if comp.name == "MonitoredExpressions":
@@ -2144,26 +2144,20 @@ const struct cellmodel_lut model_lut = {
                         lookup_name = ode._lut_enum_val[n]
                         name = f"const double {lookup_name}"
                     
-                    elif expr.name not in ode._skip_intermediates:
-                        name = f"const {self.float_type} {self.obj_name(expr)}"
-                else:
-                    name = f"const {self.float_type} {self.obj_name(expr)}"             
+                    #elif expr.name not in ode._skip_intermediates:
+                    #    name = f"const {self.float_type} {self.obj_name(expr)}"
+
+                    else:
+                        name = f"const {self.float_type} {self.obj_name(expr)}"             
 
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
 
             else:
+                
                 if hasattr(ode, "_lut_expressions"):
                     if initiate_lut:
-                        
-                        #new_state_expr = f"dt*{ode._new_state_expr[state_name]}+{state}"
-                        #print(type(ode._new_state_expr[state_name]))
-                        
-                        new_state_expr = "dt*" + ode._new_state_expr[state_name]+"+"+state_name
-
-                        #new_state_expr = ode._new_state_expr[state_name]
-
-                        state_lines.append(self.to_code(new_state_expr, name))
+                        state_lines.append(self.to_code(expr.expr, name))
                         initiate_lut = False
 
 
@@ -2173,20 +2167,34 @@ const struct cellmodel_lut model_lut = {
                         state_lines.append(self.to_code(lookup_expr, name))
                         n+=1
 
-                    elif expr.name not in ode._skip_intermediates:
-                        state_lines.append(self.to_code(expr.expr, name))              
+
+                    
+                    else:
+                        if expr.name in ode._derivative_intermediates:
+                            new_expr = ode._new_derivative_intermediates[expr.name]
+                            state_lines.append(self.to_code(new_expr, name))
+                        else:
+                            state_lines.append(self.to_code(expr.expr, name))
+
+
+                    #elif expr.name in ode._new_state_expr:
+                    #    state_lines.append(self.to_code)(expr.expr,)
+
+                    #elif expr.name not in ode._derivative_intermediates:
+                    #    state_lines.append(self.to_code(expr.expr, name))              
+                
                 else:
-                    state_lines.append(self.to_code(expr.expr, name))
+                    state_lines.append(self.to_code(expr.expr, name))   
 
-
-            
-            
-
+        
 
 
 
+        if comp.name != "MonitoredExpressions":
+            state_lines.append(f'std::cout << "m_A: " << m_A << std::endl')
+            #state_lines.append(f'std::cout << "m_B: " << m_B << std::endl')
+            #state_lines.append(f'std::cout << "dm_dt: " << dm_dt << std::endl')
 
-        if comp.name != "MonitoredExpressions": 
             parameter_lines.append(state_lines)
             body_lines.append(parameter_lines)
 
@@ -2212,6 +2220,8 @@ const struct cellmodel_lut model_lut = {
                 "",
                 comp.description,
             )
+
+
 
 
         return "\n".join(self.indent_and_split_lines(body_lines, indent=indent))
@@ -2283,6 +2293,8 @@ const struct cellmodel_lut model_lut = {
             return body_lines
 
         # Add function prototype
+
+        
         if include_signature:
             body_lines = self.wrap_body_with_function_prototype(
                 body_lines,
