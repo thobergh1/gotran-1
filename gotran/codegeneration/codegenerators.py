@@ -206,7 +206,7 @@ class BaseCodeGenerator(object):
 
         # Code for the right hand side evaluation?
 
-        """
+        
         if functions.rhs.generate:
             comps.append(
                 rhs_expressions(
@@ -216,7 +216,7 @@ class BaseCodeGenerator(object):
                     params=self.params.code,
                 ),
             )
-        """
+        
 
         # Code for any monitored intermediates
         if monitored and functions.monitored.generate:
@@ -1835,7 +1835,20 @@ class CCodeGenerator(BaseCodeGenerator):
         body_lines = [f"constexpr std::array<const univariate_func_tuple, {num_expressions} > expressions_V  ="]
 
 
-   
+
+        secondary_body_lines = []
+
+        count = 0
+        for key in lut_expr:
+            for elem in lut_expr[key]:
+                line = "univariate_func_tuple { " + '"' + ode._new_intermediates[count]\
+                        + '"' + ", [] (double V, double dt, double *param) {\n"
+                line += "      return dt*{0}; \n".format(elem)
+                line += "  }},"
+                secondary_body_lines.append(line)
+                count += 1
+        body_lines.append(secondary_body_lines)
+
 
         """
         secondary_body_lines = []
@@ -1855,6 +1868,7 @@ class CCodeGenerator(BaseCodeGenerator):
 
         """
  
+        """
         secondary_body_lines = []
         lut_version = ["A", "B"]
         for key in lut_expr:
@@ -1869,7 +1883,8 @@ class CCodeGenerator(BaseCodeGenerator):
 
         body_lines.append(secondary_body_lines)
         #print(body_lines)
-
+        """
+        
 
         return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))+";"
     
@@ -1885,7 +1900,7 @@ class CCodeGenerator(BaseCodeGenerator):
 
         indent_str = self.indent * " "
         member_lines = [
-            f"{indent_str}LUT_INDEX_{lut_enum}," for lut_enum in ode._lut_enum_val
+            f"{indent_str}LUT_INDEX_{lut_enum}," for lut_enum in ode._new_intermediates
         ]
         enum = ["enum {"]
         enum.extend(member_lines)
@@ -2139,6 +2154,9 @@ const struct cellmodel_lut model_lut = {
 
             
             else:
+                name = f"const {self.float_type} {self.obj_name(expr)}"
+
+                """
                 if hasattr(ode, "_lut_expressions"):
                     if expr.name in ode._new_intermediates:
                         lookup_name = ode._lut_enum_val[n]
@@ -2148,7 +2166,11 @@ const struct cellmodel_lut model_lut = {
                     #    name = f"const {self.float_type} {self.obj_name(expr)}"
 
                     else:
-                        name = f"const {self.float_type} {self.obj_name(expr)}"             
+                        name = f"const {self.float_type} {self.obj_name(expr)}"  
+
+                else:
+                    name = f"const {self.float_type} {self.obj_name(expr)}"      
+                """
 
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
@@ -2162,7 +2184,8 @@ const struct cellmodel_lut model_lut = {
 
 
                     elif expr.name in ode._new_intermediates:
-                        lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+                        #lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
+                        lookup_expr = f"lut_V.lookup(LUT_INDEX_{expr}, lut_V_state)"
 
                         state_lines.append(self.to_code(lookup_expr, name))
                         n+=1
@@ -2170,18 +2193,24 @@ const struct cellmodel_lut model_lut = {
 
                     
                     else:
+                        state_lines.append(self.to_code(expr.expr, name))
+
+
+                        """
                         if expr.name in ode._derivative_intermediates:
                             new_expr = ode._new_derivative_intermediates[expr.name]
                             state_lines.append(self.to_code(new_expr, name))
                         else:
                             state_lines.append(self.to_code(expr.expr, name))
+                        """
+                        
+                    """
+                    elif expr.name in ode._new_state_expr:
+                        state_lines.append(self.to_code)(expr.expr,)
 
-
-                    #elif expr.name in ode._new_state_expr:
-                    #    state_lines.append(self.to_code)(expr.expr,)
-
-                    #elif expr.name not in ode._derivative_intermediates:
-                    #    state_lines.append(self.to_code(expr.expr, name))              
+                    elif expr.name not in ode._derivative_intermediates:
+                        state_lines.append(self.to_code(expr.expr, name))
+                    """         
                 
                 else:
                     state_lines.append(self.to_code(expr.expr, name))   
@@ -2191,7 +2220,7 @@ const struct cellmodel_lut model_lut = {
 
 
         if comp.name != "MonitoredExpressions":
-            state_lines.append(f'std::cout << "m_A: " << m_A << std::endl')
+            #state_lines.append(f'std::cout << "m_A: " << m_A << std::endl')
             #state_lines.append(f'std::cout << "m_B: " << m_B << std::endl')
             #state_lines.append(f'std::cout << "dm_dt: " << dm_dt << std::endl')
 
