@@ -1843,7 +1843,7 @@ class CCodeGenerator(BaseCodeGenerator):
             for elem in lut_expr[key]:
                 line = "univariate_func_tuple { " + '"' + ode._new_intermediates[count]\
                         + '"' + ", [] (double V, double dt, double *param) {\n"
-                line += "      return dt*{0}; \n".format(elem)
+                line += "      return {0}; \n".format(elem)
                 line += "  }},"
                 secondary_body_lines.append(line)
                 count += 1
@@ -2033,16 +2033,9 @@ const struct cellmodel_lut model_lut = {
                 state_lines.append(f'const auto lut_V_state = lut_V.compute_input_state(V)')
             
             
-            #state_lines.append('double AA = STATE_m * padded_num_cells + i')
+
+            #state_lines.append(f'std::cout << "V: " << V << std::endl')
             
-            #state_lines.append('std::cout << "i :" << i << " | AA:" << AA<< std::endl')
-            #state_lines.append('std::cout << "paddded: " << padded_num_cells << std::endl')
-
-            #state_lines.append('std::cout << "i :" << i << std::endl')
-            #state_lines.append('std::cout << "AA:" << AA << std::endl')
-            #state_lines.append('std::cout << "paddded: " << padded_num_cells << std::endl')
-            #state_lines.append('std::cout << "V:" << V << std::endl')
-
 
             #state_lines.append(f'std::cout << "ra: " << lut_V_state.row_above << std::endl')
             #state_lines.append(f'std::cout << "rb: " << lut_V_state.row_below << std::endl')
@@ -2215,13 +2208,16 @@ const struct cellmodel_lut model_lut = {
                 else:
                     state_lines.append(self.to_code(expr.expr, name))   
 
-        
+    
 
-
-
-        if comp.name != "MonitoredExpressions":
-            #state_lines.append(f'std::cout << "m_A: " << m_A << std::endl')
-            #state_lines.append(f'std::cout << "m_B: " << m_B << std::endl')
+        if comp.name != "MonitoredExpressions":            
+            #state_lines.append(f'std::cout << "m: " << m << std::endl')
+            #state_lines.append(f'std::cout << "h: " << h << std::endl')
+            #state_lines.append(f'std::cout << "n: " << n << std::endl')
+            
+            #state_lines.append(f'std::cout << "V: " << V << std::endl')
+            #state_lines.append(f'std::cout << "alpha_m: " << alpha_m << std::endl')
+            #state_lines.append(f'std::cout << "beta_m: " << beta_m << std::endl')            
             #state_lines.append(f'std::cout << "dm_dt: " << dm_dt << std::endl')
 
             parameter_lines.append(state_lines)
