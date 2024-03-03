@@ -1816,77 +1816,56 @@ class CCodeGenerator(BaseCodeGenerator):
         Generating code for building lut expressions
         """
         
-        lut_expr = ode._lut_expressions
+        #lut_expr = ode._lut_expressions
+        lut_expr = {}
+        lut_expressions = ode._lut_expressions
         candidates = ode._candidates   
+
+        """
+        for key, inner_dict in all_lut_expr.items():
+            for inner_key, inner_value in inner_dict.items():
+                if inner_key not in lut_expr:
+                    lut_expr[inner_key] = []               
+                lut_expr[inner_key].extend(inner_value)
+
+        print("Here", lut_expr)
+        """
+            
 
         body_lines = []
 
-        states_name = self.params.code.states.array_name
-        offset = (
-            f"{states_name}_offset + " if self.params.code.states.add_offset else ""
-        )
+        for candidate in candidates:
+            #print(candidate)
+            #print(lut_expressions[candidate])
+            lut_expr = lut_expressions[candidate]
 
-        enum_based_indexing = self.params.code["body"]["use_enum"]
+            
+            states_name = self.params.code.states.array_name
+            offset = (
+                f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+            )
 
-        num_expressions = 0
-        for key, value in lut_expr.items():
-            num_expressions+= len(value)
-        
-        body_lines = [f"constexpr std::array<const univariate_func_tuple, {num_expressions} > expressions_V  ="]
+            enum_based_indexing = self.params.code["body"]["use_enum"]
 
-
-
-        secondary_body_lines = []
-
-        count = 0
-        for key in lut_expr:
-            for elem in lut_expr[key]:
-                line = "univariate_func_tuple { " + '"' + ode._new_intermediates[count]\
-                        + '"' + ", [] (double V, double dt, double *param) {\n"
-                line += "      return {0}; \n".format(elem)
-                line += "  }},"
-                secondary_body_lines.append(line)
-                count += 1
-        body_lines.append(secondary_body_lines)
+            num_expressions = sum(len(value) for value in lut_expr.values())
+            
+            body_lines.append(f"constexpr std::array<const univariate_func_tuple, {num_expressions}> expressions_{candidate} = {{")
 
 
-        """
-        secondary_body_lines = []
-        for i in range(len(candidates)):
-            for key in lut_expr:
-                line = "univariate_func_tuple { " + '"' + str(key) + '"' + ", [] double V, double dt, double *param {\n"
-                count = 0
-                for elem in lut_expr[key]:
-                    line += "      double {0} = {1}; \n".format("lut_expr_" + str(count), elem)
-                    count += 1
-                line += "      double lut_new_expr = lut_old_expr * dt; \n"
-                line += "      return lut_new_expr; \n"
-                line += " }},"
-                secondary_body_lines.append(line)
+            expressions_body_lines = []
 
-        body_lines.append(secondary_body_lines)
-
-        """
- 
-        """
-        secondary_body_lines = []
-        lut_version = ["A", "B"]
-        for key in lut_expr:
             count = 0
-            for elem in lut_expr[key]:
-                line = "univariate_func_tuple { " + '"' + str(key) + "_" + str(lut_version[count]) \
-                        + '"' + ", [] (double V, double dt, double *param) {\n"
-                line += "      return dt*{0}; \n".format(elem)
-                line += "  }},"
-                secondary_body_lines.append(line)
-                count += 1
-
-        body_lines.append(secondary_body_lines)
-        #print(body_lines)
-        """
-        
-
-        return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))+";"
+            for key in lut_expr:
+                for elem in lut_expr[key]:
+                    line = f'univariate_func_tuple{{"{ode._new_intermediates[count]}", [] (double {candidate}, double dt, double *param) {{\n'
+                    line += "   return {0}; \n".format(elem)
+                    line += "  }},"
+                    expressions_body_lines.append(line)
+                    count += 1
+            body_lines.extend(expressions_body_lines)
+            body_lines.append("}; \n")
+            
+        return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))
     
         #return "\n".join(self.indent_and_split_lines(body_lines, indent=indent, no_line_ending=True))
 
@@ -2108,11 +2087,13 @@ const struct cellmodel_lut model_lut = {
                             
                             
                             #Check if state is a lut state
+                            """
                             if hasattr(ode, "_lut_expressions"):                        
                                 if expr.state.name in ode._lut_states:
                                     initiate_lut = True
                                     lookup_intermediate = True
                                     state_name = expr.state.name
+                            """
                                 
 
                     elif isinstance(expr, ParameterIndexedExpression):
@@ -2149,22 +2130,6 @@ const struct cellmodel_lut model_lut = {
             else:
                 name = f"const {self.float_type} {self.obj_name(expr)}"
 
-                """
-                if hasattr(ode, "_lut_expressions"):
-                    if expr.name in ode._new_intermediates:
-                        lookup_name = ode._lut_enum_val[n]
-                        name = f"const double {lookup_name}"
-                    
-                    #elif expr.name not in ode._skip_intermediates:
-                    #    name = f"const {self.float_type} {self.obj_name(expr)}"
-
-                    else:
-                        name = f"const {self.float_type} {self.obj_name(expr)}"  
-
-                else:
-                    name = f"const {self.float_type} {self.obj_name(expr)}"      
-                """
-
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
 
@@ -2177,7 +2142,6 @@ const struct cellmodel_lut model_lut = {
 
 
                     elif expr.name in ode._new_intermediates:
-                        #lookup_expr = f"lut_V.lookup(LUT_INDEX_{lookup_name}, lut_V_state)"
                         lookup_expr = f"lut_V.lookup(LUT_INDEX_{expr}, lut_V_state)"
 
                         state_lines.append(self.to_code(lookup_expr, name))

@@ -37,6 +37,8 @@ from modelparameters.sympy.core.function import AppliedUndef
 from modelparameters.sympy.core.function import UndefinedFunction
 from modelparameters.sympy.core.function import sympify
 from modelparameters.sympy import symbols
+from modelparameters.sympy.core.power import Pow
+
 from sympy import exp, ccode, parse_expr
 
 
@@ -156,22 +158,21 @@ class SyntaxTree(object):
                     node.mark_as_explicitly_time_dependent(state_symbol_list)
   
 
-    def find_lut_candidates(self, candidates, state_expr, state_symbol, lut_enum_val, new_intermediates):
+    def find_lut_candidates(self, candidates, state_symbol, new_intermediates):
         #lut_candidates is a dictionary of lists
         
         #hvis node er kandidat
         lut_candidates = {}
         for i in candidates:
             lut_candidates[i] = []
-    
-        lut_index = 0
-        new_state = ""
+
+        
         #print("outside")
-        if evaluate_expr(state_expr):  
-            new_state = pre_order(self.root, lut_candidates, state_expr, state_symbol, lut_enum_val, new_intermediates)
+        #if evaluate_expr(self.root.sympyexpr):  
+        pre_order(self.root, lut_candidates, state_symbol, new_intermediates)
 
 
-        return lut_candidates, new_state
+        return lut_candidates
 
 
 def evaluate_expr(expr):
@@ -187,6 +188,10 @@ def evaluate_expr(expr):
     def isExhaustiveEnough(expr):
         if expr.find(exp):
             return True
+        
+        if expr.find(Pow):
+            return True
+        
         for arg in expr.args:
             return isExhaustiveEnough(arg)
         
@@ -198,7 +203,7 @@ def evaluate_expr(expr):
         
     return False
  
-def pre_order(node, lut_candidates, state_expr, state_symbol, lut_enum_val, new_intermediates):
+def pre_order(node, lut_candidates, state_symbol, new_intermediates):
     referentstates = list(node.referentstates)
     if len(referentstates) == 1 and not node.time_dependent:
         s_sym = referentstates[0]
@@ -212,16 +217,23 @@ def pre_order(node, lut_candidates, state_expr, state_symbol, lut_enum_val, new_
             if not duplicate and node.parent.depth == 1:
 
                 if evaluate_expr(node.sympyexpr):
+                    print(node.sympyexpr, type(node.sympyexpr))
+                    
+                    if node.name.startswith('<'):
+                        name = node.parent.name
+                    else:
+                        name = node.name
 
-                    new_intermediates.append(node.name)
+                    new_intermediates.append(name)
+
                     
                     
 
                     str_expr = str(node.sympyexpr)
-                    str_state_expr = str(state_expr)                
+                    #str_state_expr = str(state_expr)                
 
-                    subs_V_expr = str_expr.replace("V(t)","V")
-                    subs_V_state_expr = str_state_expr.replace("V(t)","V")
+                    subs_V_expr = str_expr.replace("(t)","")
+                    #subs_V_state_expr = str_state_expr.replace("V(t)","V")
 
 
                     # Parse the C/C++ expression using SymPy
@@ -237,22 +249,21 @@ def pre_order(node, lut_candidates, state_expr, state_symbol, lut_enum_val, new_
 
                     #sympy_subs_expr = sympify(subs_V_expr)
                     #sympy_state_expr = sympify(subs_V_state_expr)
-                    count = len(lut_candidates[s_str])
+                    #count = len(lut_candidates[s_str])
                     
-                    lut_version = ["A", "B"]
-                    old = node.sympyexpr
-                    lut_intermediate = str(state_symbol + "_" + lut_version[count-1])
+                    #lut_version = ["A", "B"]
+                    #old = node.sympyexpr
+                    #lut_intermediate = str(state_symbol + "_" + lut_version[count-1])
 
-                    lut_enum_val.append(lut_intermediate)
+                    #lut_enum_val.append(lut_intermediate)
 
-                    new = symbols(lut_intermediate)
-                    state_expr = state_expr.subs(node.sympyexpr, new)
+                    #new = symbols(lut_intermediate)
+                    #state_expr = state_expr.subs(node.sympyexpr, new)
                     #print("here", state_expr)
                     
     for child in node.children:
-        state_expr = pre_order(child, lut_candidates, state_expr, state_symbol, lut_enum_val, new_intermediates)
+        pre_order(child, lut_candidates, state_symbol, new_intermediates)
         
-    return state_expr
     
     
 
@@ -1382,43 +1393,62 @@ class ODE(ODEComponent):
         #print(self.intermediates)
         
         n = 0
-        lut_expressions = {}
+        lut_expressions = {candidate:{} for candidate in candidates}
         new_state_expr = {}
-        lut_enum_val = []
+        #lut_enum_val = []
         new_intermediates = []
         derivative_intermediates = []
         
+
         for state_symbol in self.state_symbols:
 
             d_state = self.state_expressions[self.state_symbols.index(state_symbol)]
-            
             state_symbols = [s.sym for s in self.states]
-
             tree = SyntaxTree.from_sympy(d_state.expr, self.intermediates, self.intermediate_symbols)
-
             
             tree.detect_state_references(state_symbols, self.t)
-            lut_expr_candidates, new_state_expr[state_symbol] = tree.find_lut_candidates(candidates, tree.root.sympyexpr,
-                                                                                         state_symbol, lut_enum_val,
-                                                                                         new_intermediates)
+            lut_expr_candidates = tree.find_lut_candidates(candidates, state_symbol, new_intermediates)
+
+            #print(new_intermediates)
+            current_lut_expressions = {}
+            for key, val in lut_expr_candidates.items():
+                if len(val) > 0:
+                    #lut_expressions[state_symbol] = lut_expr_candidates[key]
+                    lut_expressions[key][state_symbol] = lut_expr_candidates[key]
+
+
             
-            for key in lut_expr_candidates:
-                if len(lut_expr_candidates[key]) > 0:
-                    lut_expressions[state_symbol] = lut_expr_candidates[key]
-                    derivative_intermediates.append(d_state.name)
-                  
-                    #col_idx = len(lut_expressions[state_symbol])
+
+
+                        
+            """
+            for key in candidates:
+                for state in lut_expr_candidates:
+                    if len(lut_expr_candidates[key]) > 0:
+                        current_lut_expressions[state] = lut_expr_candidates[state]
+                
+                all_lut_candidates[key] = current_lut_expressions
+            """
 
             # analyser hvilke deler av treet for state deriverte som kan passe inn i LUT
-            
             # når vi har listen over alle LUT-uttrykk for variabelen,
             # så kaller vi subs-metoden på hver av de state-deriverte
             # og setter inn LUTExpression for sympy-uttrykkene
-
             # lut_expressions[s] = liste med LUTExpression
 
-            self.state_expressions[self.state_symbols.index(state_symbol)] = new_state_expr[state_symbol]
+            #self.state_expressions[self.state_symbols.index(state_symbol)] = new_state_expr[state_symbol]
+            
+        
+        
+        #print(lut_expressions)
+        self._candidates = candidates
+        self._lut_expressions = lut_expressions
+        self._new_intermediates = new_intermediates
+        self._derivative_intermediates = derivative_intermediates
 
+
+
+        """
         hit = []
         for key in new_state_expr:
             if new_state_expr[key] == '':
@@ -1435,19 +1465,13 @@ class ODE(ODEComponent):
         for key in new_state_expr:
             replace_expr = str(new_state_expr[key]).replace("(t)", "")
             new_state_expr[key] = replace_expr
-        
+        """
 
-        i = 0
-        new_derivative_intermediates = {}
-        for key, val in new_state_expr.items():
-            new_derivative_intermediates[derivative_intermediates[i]] = val
-            i+=1
-
-
-
-        #print(lut_expressions)
-
-
+        #i = 0
+        #new_derivative_intermediates = {}
+        #for key, val in new_state_expr.items():
+        #    new_derivative_intermediates[derivative_intermediates[i]] = val
+        #    i+=1
 
         """
         try:
@@ -1457,19 +1481,30 @@ class ODE(ODEComponent):
                 new_state = sympify(new_state_expr[state_symbol])
                 self.state_expressions[self.state_symbols.index(state_symbol)]._replace(new_state)
         except KeyError:
-            "   "
+            ""
         """
+
+        
         #print(lut_states)
         #print(new_derivative_intermediates)
+        #print(new_intermediates)
+        #print(lut_expressions)
 
-        self._lut_expressions = lut_expressions
-        self._candidates = candidates
-        self._lut_states = lut_states
-        self._lut_enum_val = lut_enum_val
-        self._new_intermediates = new_intermediates
-        self._derivative_intermediates = derivative_intermediates
+        #print(all_lut_expressions)
+    
+     
 
-        self._new_derivative_intermediates = new_derivative_intermediates
+
+        
+        """
+        print("lut expressions:")
+        for key,val in lut_expressions.items():
+            print(key," : ", val)
+        """
+        #self._lut_states = lut_states
+        #self._lut_enum_val = lut_enum_val
+
+        #self._new_derivative_intermediates = new_derivative_intermediates
 
         #print(new_derivative_intermediates)
         #print(lut_enum_val)
