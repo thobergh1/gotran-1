@@ -1942,6 +1942,13 @@ const struct cellmodel_lut model_lut = {
 
 
 
+    def search_intermediates(self, intermediates, expr_name):
+        for outer_key, inner_dict in intermediates.items():
+            for inner_key, inner_list in inner_dict.items():
+                if expr_name in inner_list:
+                    return outer_key
+        return None
+
 
     def function_code(
         self,
@@ -1951,7 +1958,7 @@ const struct cellmodel_lut model_lut = {
         default_arguments=None,
         include_signature=True,
         return_body_lines=False,
-    ):
+):
 
         params = self.params.code
         default_arguments = default_arguments or params.default_arguments
@@ -2061,7 +2068,6 @@ const struct cellmodel_lut model_lut = {
             for sub_key, sub_list in inner_dict.items():
                 new_intermediates.extend(sub_list)
         
-        print(new_intermediates)
         
 
         # Iterate over any body needed to define the dy
@@ -2138,14 +2144,15 @@ const struct cellmodel_lut model_lut = {
             else:
                 
                 if hasattr(ode, "_lut_expressions"):
-                    print(expr.name)
 
+                    outer_key = self.search_intermediates(ode._new_intermediates, expr.name)
+                    
                     if initiate_lut:
                         state_lines.append(self.to_code(expr.expr, name))
                         initiate_lut = False
 
-                    elif expr.name in new_intermediates:
-                        lookup_expr = f"lut_V.lookup(LUT_INDEX_{expr}, lut_V_state)"
+                    elif outer_key:
+                        lookup_expr = f"lut_{outer_key}.lookup(LUT_INDEX_{expr}, lut_{outer_key}_state)"
 
                         state_lines.append(self.to_code(lookup_expr, name))
                         n+=1
