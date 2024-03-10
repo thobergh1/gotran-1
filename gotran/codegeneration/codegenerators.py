@@ -1819,6 +1819,7 @@ class CCodeGenerator(BaseCodeGenerator):
         #lut_expr = ode._lut_expressions
         lut_expr = {}
         lut_expressions = ode._lut_expressions
+        new_intermediates = ode._new_intermediates
         candidates = ode._candidates   
 
         """
@@ -1838,6 +1839,7 @@ class CCodeGenerator(BaseCodeGenerator):
             #print(candidate)
             #print(lut_expressions[candidate])
             lut_expr = lut_expressions[candidate]
+            new_intermediate = new_intermediates[candidate]
 
             
             states_name = self.params.code.states.array_name
@@ -1854,11 +1856,11 @@ class CCodeGenerator(BaseCodeGenerator):
 
             expressions_body_lines = []
 
-            count = 0
             for key in lut_expr:
-                for elem in lut_expr[key]:
-                    line = f'univariate_func_tuple{{"{ode._new_intermediates[count]}", [] (double {candidate}, double dt, double *param) {{\n'
-                    line += "   return {0}; \n".format(elem)
+                count = 0
+                for val in lut_expr[key]:
+                    line = f'univariate_func_tuple{{"{new_intermediate[key][count]}", [] (double {candidate}, double dt, double *param) {{\n'
+                    line += "   return {0}; \n".format(val)
                     line += "  }},"
                     expressions_body_lines.append(line)
                     count += 1
@@ -1876,15 +1878,23 @@ class CCodeGenerator(BaseCodeGenerator):
     def lut_enum_code(self, ode, indent=0):
     
         #Generate enum for LUT state variables
-
+        body_lines = []
         indent_str = self.indent * " "
-        member_lines = [
-            f"{indent_str}LUT_INDEX_{lut_enum}," for lut_enum in ode._new_intermediates
-        ]
-        enum = ["enum {"]
-        enum.extend(member_lines)
-        enum.append("};")
-        return "\n".join(enum)
+        for candidate in ode._candidates:
+            new_intermediate = ode._new_intermediates[candidate]
+
+            enum = ["enum {"]
+            for key in new_intermediate:
+                count = 0
+                for val in new_intermediate[key]:
+                    line = f"{indent_str}LUT_INDEX_{new_intermediate[key][count]},"
+                    enum.append(line)
+                    count += 1
+
+            enum.append("};\n")
+            body_lines.extend(enum)
+            
+        return "\n".join(body_lines)
     
 
     def setup_model(self, indent = 0):
@@ -1904,9 +1914,15 @@ expressions_tuple_to_func_vector(std::vector<univariate_func_tuple> e_tuple_vec)
 const std::vector<univariate_func_tuple> expressions_V_tuple_vec(expressions_V.begin(),
                                                                 expressions_V.end());
 
+const std::vector<univariate_func_tuple> expressions_Ca_ss_tuple_vec(expressions_Ca_ss.begin(),
+                                                                expressions_Ca_ss.end());
+
+                 
 const std::vector<univariate_func> expressions_V_vec =
         expressions_tuple_to_func_vector(expressions_V_tuple_vec);
-
+                 
+const std::vector<univariate_func> expressions_Ca_ss_vec =
+        expressions_tuple_to_func_vector(expressions_Ca_ss_tuple_vec);
 
 const struct cellmodel_lut model_lut = {
         &init_state_values,
@@ -1917,6 +1933,8 @@ const struct cellmodel_lut model_lut = {
         NUM_STATES,
         NUM_PARAMS,
         &expressions_V_vec,
+        &expressions_Ca_ss_vec,
+                 
 };
 """]
 
@@ -2009,25 +2027,9 @@ const struct cellmodel_lut model_lut = {
         
 
             if hasattr(ode, "_lut_expressions"):
-                state_lines.append(f'const auto lut_V_state = lut_V.compute_input_state(V)')
+                for candidate in ode._candidates:
+                    state_lines.append(f'const auto lut_{candidate}_state = lut_{candidate}.compute_input_state({candidate})')
             
-            
-
-            #state_lines.append(f'std::cout << "V: " << V << std::endl')
-            
-
-            #state_lines.append(f'std::cout << "ra: " << lut_V_state.row_above << std::endl')
-            #state_lines.append(f'std::cout << "rb: " << lut_V_state.row_below << std::endl')
-            #state_lines.append(f'std::cout << "wa: " << lut_V_state.weight_above << std::endl')
-            #state_lines.append(f'std::cout << "wb: "<< lut_V_state.weight_below << std::endl')
-
-
-
-            
-            #state_lines.append('std::cout << "m_A: " << lut_V.lookup(LUT_INDEX_m_A, lut_V_state) << std::endl')
-
-
-
         expr_lines = [""]
 
         
@@ -2051,7 +2053,17 @@ const struct cellmodel_lut model_lut = {
 
         initiate_lut = False
         lookup_intermediate = False
+
+        new_intermediates = []
+
+        # Iterate over the dictionary and concatenate the lists
+        for key, inner_dict in ode._new_intermediates.items():
+            for sub_key, sub_list in inner_dict.items():
+                new_intermediates.extend(sub_list)
         
+        print(new_intermediates)
+        
+
         # Iterate over any body needed to define the dy
         n = 0    
         for expr in comp.body_expressions:
@@ -2084,17 +2096,7 @@ const struct cellmodel_lut model_lut = {
                                 expr.basename,
                                 self._state_enum_val(expr.state),
                             )
-                            
-                            
-                            #Check if state is a lut state
-                            """
-                            if hasattr(ode, "_lut_expressions"):                        
-                                if expr.state.name in ode._lut_states:
-                                    initiate_lut = True
-                                    lookup_intermediate = True
-                                    state_name = expr.state.name
-                            """
-                                
+                                                           
 
                     elif isinstance(expr, ParameterIndexedExpression):
                         name = "{0}[{1}]".format(
@@ -2136,12 +2138,13 @@ const struct cellmodel_lut model_lut = {
             else:
                 
                 if hasattr(ode, "_lut_expressions"):
+                    print(expr.name)
+
                     if initiate_lut:
                         state_lines.append(self.to_code(expr.expr, name))
                         initiate_lut = False
 
-
-                    elif expr.name in ode._new_intermediates:
+                    elif expr.name in new_intermediates:
                         lookup_expr = f"lut_V.lookup(LUT_INDEX_{expr}, lut_V_state)"
 
                         state_lines.append(self.to_code(lookup_expr, name))
@@ -2191,13 +2194,17 @@ const struct cellmodel_lut model_lut = {
         if return_body_lines:
             return body_lines
 
+        lut_cand = ""
         if include_signature:
             # Add function prototype
             if comp.name != "MonitoredExpressions":
+        
+                parallel_args = ",\n const long num_cells, long padded_num_cells"
+        
                 if hasattr(ode, "_lut_expressions"):
-                    parallel_args = ",\n const long num_cells, long padded_num_cells, LUT_type &lut_V"
-                else:
-                    parallel_args = ",\n const long num_cells, long padded_num_cells"
+                    for candidate in ode._candidates:
+                        parallel_args += f", LUT_type &lut_{candidate}"
+                
 
 
             else:
