@@ -38,7 +38,8 @@ from modelparameters.sympy.core.function import UndefinedFunction
 from modelparameters.sympy.core.function import sympify
 from modelparameters.sympy import symbols
 from modelparameters.sympy.core.power import Pow
-
+from modelparameters.sympy.core.symbol import Symbol
+import modelparameters as modelparameters
 from sympy import exp, ccode, parse_expr
 
 
@@ -158,52 +159,55 @@ class SyntaxTree(object):
                     node.mark_as_explicitly_time_dependent(state_symbol_list)
   
 
-    def find_lut_candidates(self, candidates, state_symbol, new_intermediates):
+    def find_lut_candidates(self, candidates, state_symbol):
         #lut_candidates is a dictionary of lists
         
         #hvis node er kandidat
         lut_candidates = {}
+        intermediates_candidates = {}
         for i in candidates:
             lut_candidates[i] = []
+            intermediates_candidates[i] = []
 
         
         #print("outside")
         #if evaluate_expr(self.root.sympyexpr):  
-        pre_order(self.root, lut_candidates, state_symbol, new_intermediates)
+        pre_order(self.root, lut_candidates, state_symbol, intermediates_candidates)
 
 
-        return lut_candidates
+        return lut_candidates, intermediates_candidates
 
+
+def one_candidate_expr(expr, boolean = True):
+    for arg in expr.args:
+        if isinstance(arg, Symbol) and arg.name != "t":
+            return False
+        boolean = one_candidate_expr(arg, boolean)
+    return boolean
 
 def evaluate_expr(expr):
     def isPiecewise(expr):
         if expr.is_Piecewise:
             return True
-
         for arg in expr.args:
-            return isPiecewise(arg)
-        
+            if isPiecewise(arg):
+                return True
         return False
 
     def isExhaustiveEnough(expr):
-        if expr.find(exp):
+        if expr.find(exp) or expr.find(Pow):
             return True
-        
-        if expr.find(Pow):
-            return True
-        
         for arg in expr.args:
-            return isExhaustiveEnough(arg)
-        
+            if isExhaustiveEnough(arg):
+                return True
         return False
 
-    if not isPiecewise(expr):
-        if isExhaustiveEnough(expr):
-            return True
-        
+    if not isPiecewise(expr) and isExhaustiveEnough(expr) and one_candidate_expr(expr):
+        return True
     return False
+
  
-def pre_order(node, lut_candidates, state_symbol, new_intermediates):
+def pre_order(node, lut_candidates, state_symbol, intermediate_candiates):
     referentstates = list(node.referentstates)
     if len(referentstates) == 1 and not node.time_dependent:
         s_sym = referentstates[0]
@@ -215,16 +219,14 @@ def pre_order(node, lut_candidates, state_symbol, new_intermediates):
                     duplicate = True
 
             if not duplicate and node.parent.depth == 1:
-
                 if evaluate_expr(node.sympyexpr):
-                    print(node.sympyexpr, type(node.sympyexpr))
                     
                     if node.name.startswith('<'):
                         name = node.parent.name
                     else:
                         name = node.name
 
-                    new_intermediates.append(name)
+                    intermediate_candiates[s_str].append(name)
 
                     
                     
@@ -262,7 +264,7 @@ def pre_order(node, lut_candidates, state_symbol, new_intermediates):
                     #print("here", state_expr)
                     
     for child in node.children:
-        pre_order(child, lut_candidates, state_symbol, new_intermediates)
+        pre_order(child, lut_candidates, state_symbol, intermediate_candiates)
         
     
     
@@ -1396,7 +1398,7 @@ class ODE(ODEComponent):
         lut_expressions = {candidate:{} for candidate in candidates}
         new_state_expr = {}
         #lut_enum_val = []
-        new_intermediates = []
+        new_intermediates = {candidate:{} for candidate in candidates}
         derivative_intermediates = []
         
 
@@ -1407,14 +1409,16 @@ class ODE(ODEComponent):
             tree = SyntaxTree.from_sympy(d_state.expr, self.intermediates, self.intermediate_symbols)
             
             tree.detect_state_references(state_symbols, self.t)
-            lut_expr_candidates = tree.find_lut_candidates(candidates, state_symbol, new_intermediates)
+            lut_expr_candidates, intermediate_candidates = tree.find_lut_candidates(candidates, state_symbol)
 
-            #print(new_intermediates)
             current_lut_expressions = {}
             for key, val in lut_expr_candidates.items():
                 if len(val) > 0:
                     #lut_expressions[state_symbol] = lut_expr_candidates[key]
                     lut_expressions[key][state_symbol] = lut_expr_candidates[key]
+                    new_intermediates[key][state_symbol] = intermediate_candidates[key]
+
+
 
 
             
@@ -1439,8 +1443,11 @@ class ODE(ODEComponent):
             #self.state_expressions[self.state_symbols.index(state_symbol)] = new_state_expr[state_symbol]
             
         
-        
         #print(lut_expressions)
+        #print()
+        #print(new_intermediates)
+
+        #print(candidates)
         self._candidates = candidates
         self._lut_expressions = lut_expressions
         self._new_intermediates = new_intermediates
