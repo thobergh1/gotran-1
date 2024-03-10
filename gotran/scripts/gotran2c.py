@@ -10,7 +10,7 @@ from gotran.model.loadmodel import load_ode
 
 
 
-def gotran2c(filename, params):
+def gotran2c(filename, candidates, params):
     """
     Create a C header file from a gotran model
     """
@@ -22,12 +22,11 @@ def gotran2c(filename, params):
     ode = load_ode(filename)
     
 
-   
-    candidates = ["V", "h"]
+    
+    #candidates = ["V", "Ca_ss"]
+
     ode.setup_lut(candidates)
-    lut_expressions = ode._lut_expressions
-    expressions_V = []
-    expressions_Ca = []
+    
     
 
     # Collect monitored
@@ -62,9 +61,6 @@ def gotran2c(filename, params):
             f.write('#include <stdlib.h>\n')
             f.write('#include "cellmodel.h"\n')
             f.write('#include "cellmodel_lut.hpp"\n')
-
-            f.write('\n#include <iostream>\n')
-            f.write('using namespace std;\n')
 
         f.write(code)
 
@@ -108,7 +104,19 @@ def main():
         raise IOError("Expected the argument to be a file")
 
     file_name = sys.argv[1]
-    gotran2c(file_name, params)
+    
+
+
+
+    candidates = [str(candidate) for candidate in sys.argv[2]]
+    #candidates = sys.argv[2].split(",").replace(" ","")
+    candidates_arg = sys.argv[2]
+    candidates = [candidate.replace(" ", "") for candidate in candidates_arg.split(",")]
+    
+    print(candidates)
+
+
+    gotran2c(file_name, candidates, params)
 
 
 if __name__ == "__main__":
