@@ -337,7 +337,11 @@ class BaseCodeGenerator(object):
                 code["mass_matrix"] = mass
 
         if hasattr(ode, "_lut_expressions"):
-            code["init_setup_model"] = self.setup_model(indent)
+            function_names = [name.function_name for name in comps]
+            function_names.remove("rhs")
+            function_names.remove("monitor")
+
+            code["init_setup_model"] = self.setup_model(ode, function_names, indent)
 
         return code
 
@@ -1897,9 +1901,8 @@ class CCodeGenerator(BaseCodeGenerator):
         return "\n".join(body_lines)
     
 
-    def setup_model(self, indent = 0):
 
-        
+    def setup_model(self, ode, function_names, indent = 0): 
         lines = ["""
 std::vector<univariate_func>
 expressions_tuple_to_func_vector(std::vector<univariate_func_tuple> e_tuple_vec)
@@ -1909,38 +1912,50 @@ expressions_tuple_to_func_vector(std::vector<univariate_func_tuple> e_tuple_vec)
         e_func_vec[i] = e_tuple_vec[i].f;
     }
     return e_func_vec;
-}
+}"""]
+        expressions = ""
+        for candidate in ode._candidates:
+            new_intermediate = ode._new_intermediates[candidate]
 
-const std::vector<univariate_func_tuple> expressions_V_tuple_vec(expressions_V.begin(),
-                                                                expressions_V.end());
 
-const std::vector<univariate_func_tuple> expressions_Ca_ss_tuple_vec(expressions_Ca_ss.begin(),
-                                                                expressions_Ca_ss.end());
 
-                 
-const std::vector<univariate_func> expressions_V_vec =
-        expressions_tuple_to_func_vector(expressions_V_tuple_vec);
-                 
-const std::vector<univariate_func> expressions_Ca_ss_vec =
-        expressions_tuple_to_func_vector(expressions_Ca_ss_tuple_vec);
+            line = f"const std::vector<univariate_func_tuple> expressions_{candidate}_tuple_vec(expressions_{candidate}.begin(), expressions_{candidate}.end());"
+            lines.append(line)
 
+            line = f"const std::vector<univariate_func> expressions_{candidate}_vec = expressions_tuple_to_func_vector(expressions_{candidate}_tuple_vec);"
+            
+            lines.append(line)
+            expressions += f"\n&expressions_{candidate}_vec,"
+
+        line = """
 const struct cellmodel_lut model_lut = {
-        &init_state_values,
-        &init_parameters_values,
-        &state_index,
-        &parameter_index,
-        &forward_explicit_euler<default_LUT_type>,
-        NUM_STATES,
-        NUM_PARAMS,
-        &expressions_V_vec,
-        &expressions_Ca_ss_vec,
-                 
-};
-"""]
+&init_state_values,
+&init_parameters_values,
+&state_index,
+&parameter_index,\n"""
+        length = len(function_names)
+        for function in function_names:
+            if length >=2:
+                line_ending = "\n"
+            else:
+                line_ending = ""
 
-        return "\n".join(self.indent_and_split_lines(lines, indent=0, no_line_ending=True))
+            line += f"&{function}<default_LUT_type>,{line_ending}"
+            length -= 1
 
 
+
+
+        line+="""
+NUM_STATES,
+NUM_PARAMS,"""
+        line += expressions + "\n};"
+
+        lines.append(line)
+
+
+        return "\n".join(self.indent_and_split_lines(lines, no_line_ending=True))
+    
 
     def search_intermediates(self, intermediates, expr_name):
         for outer_key, inner_dict in intermediates.items():
@@ -1996,18 +2011,16 @@ const struct cellmodel_lut model_lut = {
 
             parameter_lines.append(
             "#if defined(HINT_CLANG_SIMD) \n"
-            "#pragma omp for\n"
-            "#pragma clang loop vectorize(assume_safety) \n"
-            "#elif defined(HINT_OMP_SIMD) \n"
-            "#ifdef VECTOR_LENGTH \n"
-            "#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH) \n"
-            "#else \n"
-            "#pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
-            "#endif // defined(VECTOR_LENGTH) \n"
-            "#else \n"
-            "#pragma omp for \n"
-            "#endif \n"
-            "for (long i = 0; i < num_cells; i++)")
+            "    #pragma omp for\n"
+            "    #pragma clang loop vectorize(assume_safety) \n"
+            "    #elif defined(HINT_OMP_SIMD) \n"
+            "    #ifdef VECTOR_LENGTH \n"
+            "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH) \n"
+            "    #else \n"
+            "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
+            "    #endif // defined(VECTOR_LENGTH) \n"
+            "    #endif \n"
+            "    for (long i = 0; i < num_cells; i++)")
 
 
             states_name = self.params.code.states.array_name
@@ -2061,12 +2074,12 @@ const struct cellmodel_lut model_lut = {
         initiate_lut = False
         lookup_intermediate = False
 
-        new_intermediates = []
-
-        # Iterate over the dictionary and concatenate the lists
-        for key, inner_dict in ode._new_intermediates.items():
-            for sub_key, sub_list in inner_dict.items():
-                new_intermediates.extend(sub_list)
+        if hasattr(ode, "_lut_expressions"):
+            new_intermediates = []
+            # Iterate over the dictionary and concatenate the lists
+            for key, inner_dict in ode._new_intermediates.items():
+                for sub_key, sub_list in inner_dict.items():
+                    new_intermediates.extend(sub_list)
         
         
 
@@ -2138,62 +2151,35 @@ const struct cellmodel_lut model_lut = {
             else:
                 name = f"const {self.float_type} {self.obj_name(expr)}"
 
+                """
+                if hasattr(ode, "_lut_expressions"):
+                    if expr.name not in ode._skip_intermediates:
+                        name = f"const {self.float_type} {self.obj_name(expr)}"
+                        print(expr.name, name)
+                else:        
+                    name = f"const {self.float_type} {self.obj_name(expr)}"
+                """
+
+
             if comp.name == "MonitoredExpressions":
                 body_lines.append(self.to_code(expr.expr, name))
 
             else:
                 
                 if hasattr(ode, "_lut_expressions"):
-
                     outer_key = self.search_intermediates(ode._new_intermediates, expr.name)
-                    
-                    if initiate_lut:
-                        state_lines.append(self.to_code(expr.expr, name))
-                        initiate_lut = False
-
-                    elif outer_key:
+                    if outer_key:
                         lookup_expr = f"lut_{outer_key}.lookup(LUT_INDEX_{expr}, lut_{outer_key}_state)"
 
                         state_lines.append(self.to_code(lookup_expr, name))
-                        n+=1
-
-
-                    
                     else:
                         state_lines.append(self.to_code(expr.expr, name))
-
-
-                        """
-                        if expr.name in ode._derivative_intermediates:
-                            new_expr = ode._new_derivative_intermediates[expr.name]
-                            state_lines.append(self.to_code(new_expr, name))
-                        else:
-                            state_lines.append(self.to_code(expr.expr, name))
-                        """
-                        
-                    """
-                    elif expr.name in ode._new_state_expr:
-                        state_lines.append(self.to_code)(expr.expr,)
-
-                    elif expr.name not in ode._derivative_intermediates:
-                        state_lines.append(self.to_code(expr.expr, name))
-                    """         
-                
                 else:
                     state_lines.append(self.to_code(expr.expr, name))   
 
     
 
         if comp.name != "MonitoredExpressions":            
-            #state_lines.append(f'std::cout << "m: " << m << std::endl')
-            #state_lines.append(f'std::cout << "h: " << h << std::endl')
-            #state_lines.append(f'std::cout << "n: " << n << std::endl')
-            
-            #state_lines.append(f'std::cout << "V: " << V << std::endl')
-            #state_lines.append(f'std::cout << "alpha_m: " << alpha_m << std::endl')
-            #state_lines.append(f'std::cout << "beta_m: " << beta_m << std::endl')            
-            #state_lines.append(f'std::cout << "dm_dt: " << dm_dt << std::endl')
-
             parameter_lines.append(state_lines)
             body_lines.append(parameter_lines)
 
@@ -2212,8 +2198,6 @@ const struct cellmodel_lut model_lut = {
                     for candidate in ode._candidates:
                         parallel_args += f", LUT_type &lut_{candidate}"
                 
-
-
             else:
                 parallel_args = ""
             body_lines = self.wrap_body_with_function_prototype(
@@ -2266,6 +2250,7 @@ const struct cellmodel_lut model_lut = {
                 params=params,
                 result_name="dy_comp",
             )
+            
             component_code.append(
                 self.function_code(
                     comp,

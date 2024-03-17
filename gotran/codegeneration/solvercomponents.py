@@ -221,9 +221,16 @@ class ExplicitEuler(CodeComponent):
             error("Cannot generate an explicit Euler forward step for a DAE.")
 
         # Call base class using empty result_expressions
-        descr = (
-            f"Compute a forward step using the explicit Euler scheme to the {ode} ODE"
-        )
+            
+        
+        if hasattr(ode, "_lut_expressions"):
+            descr = (
+                f'Compute a forward step using the explicit Euler scheme to the {ode} ODE \ntemplate <class LUT_type> '
+            )
+        else:
+            descr = (
+                f'Compute a forward step using the explicit Euler scheme to the {ode} ODE '
+            )
         super(ExplicitEuler, self).__init__(
             "ExplicitEuler",
             ode,
@@ -338,7 +345,16 @@ class RushLarsen(CodeComponent):
             error("Cannot generate a Rush-Larsen forward step for a DAE.")
 
         # Call base class using empty result_expressions
-        descr = f"Compute a forward step using the Rush-Larsen scheme to the {ode} ODE"
+            
+        if hasattr(ode, "_lut_expressions"):
+            descr = (
+                f"Compute a forward step using the Rush-Larsen scheme to the {ode} ODE \ntemplate <class LUT_type>"
+            )
+        else:
+            descr = (
+                f"Compute a forward step using the Rush-Larsen scheme to the {ode} ODE"
+
+            )
         super(RushLarsen, self).__init__(
             "RushLarsen",
             ode,
