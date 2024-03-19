@@ -2149,16 +2149,14 @@ NUM_PARAMS,"""
 
             
             else:
-                name = f"const {self.float_type} {self.obj_name(expr)}"
 
-                """
+                
                 if hasattr(ode, "_lut_expressions"):
                     if expr.name not in ode._skip_intermediates:
                         name = f"const {self.float_type} {self.obj_name(expr)}"
-                        print(expr.name, name)
                 else:        
                     name = f"const {self.float_type} {self.obj_name(expr)}"
-                """
+                
 
 
             if comp.name == "MonitoredExpressions":
@@ -2173,7 +2171,8 @@ NUM_PARAMS,"""
 
                         state_lines.append(self.to_code(lookup_expr, name))
                     else:
-                        state_lines.append(self.to_code(expr.expr, name))
+                        if expr.name not in ode._skip_intermediates:
+                            state_lines.append(self.to_code(expr.expr, name))
                 else:
                     state_lines.append(self.to_code(expr.expr, name))   
 
