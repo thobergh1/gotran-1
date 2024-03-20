@@ -1886,14 +1886,16 @@ class CCodeGenerator(BaseCodeGenerator):
         indent_str = self.indent * " "
         for candidate in ode._candidates:
             new_intermediate = ode._new_intermediates[candidate]
+            
+            encountered_elements = []
 
             enum = ["enum {"]
-            for key in new_intermediate:
-                count = 0
-                for val in new_intermediate[key]:
-                    line = f"{indent_str}LUT_INDEX_{new_intermediate[key][count]},"
-                    enum.append(line)
-                    count += 1
+            for key, elements in new_intermediate.items():
+                for elem in elements:
+                    if elem not in encountered_elements:
+                        line = f"{indent_str}LUT_INDEX_{elem},"
+                        enum.append(line)
+                        encountered_elements.append(elem)
 
             enum.append("};\n")
             body_lines.extend(enum)
