@@ -134,12 +134,15 @@ class SyntaxTree(object):
         intermediate_name = str(type(expr))
 
         if intermediate_name in intermediate_symbols:
-            #print(intermediate_name)
-
+            #print(intermediate_name, expr)
             old_expr = expr             
             intermediate_ind = intermediate_symbols.index(intermediate_name)
             expr = intermediates[intermediate_ind].expr
+
+            #print(intermediate_name, expr)
+
             if parent:
+                #print(old_expr," --- ", expr)
                 parent.sympy_subs(old_expr, expr)
             #check = True
             
@@ -148,7 +151,7 @@ class SyntaxTree(object):
             child = SyntaxTree._traverse_expr(arg, intermediates, intermediate_symbols, node)
             node.add_child(child)
             node.add_name(intermediate_name)
-
+    
         return node
         
     def detect_state_references(self, state_symbol_list, t):
@@ -160,7 +163,7 @@ class SyntaxTree(object):
                     node.mark_as_explicitly_time_dependent(state_symbol_list)
   
 
-    def find_lut_candidates(self, candidates, state_symbol, skip_intermediates):
+    def find_lut_candidates(self, candidates, state_symbol, skip_intermediates, encountered_intermediates):
         #lut_candidates is a dictionary of lists
         
         #hvis node er kandidat
@@ -169,11 +172,10 @@ class SyntaxTree(object):
         for i in candidates:
             lut_candidates[i] = []
             intermediates_candidates[i] = []
-
         
         #print("outside")
         #if evaluate_expr(self.root.expr):  
-        pre_order(self.root, lut_candidates, state_symbol, intermediates_candidates, skip_intermediates)
+        pre_order(self.root, lut_candidates, state_symbol, intermediates_candidates, skip_intermediates, encountered_intermediates)
 
 
         return lut_candidates, intermediates_candidates
@@ -208,7 +210,7 @@ def evaluate_expr(expr):
     return False
 
  
-def pre_order(node, lut_candidates, state_symbol, intermediate_candiates, skip_intermediates):
+def pre_order(node, lut_candidates, state_symbol, intermediate_candidates, skip_intermediates, encountered_intermediates):
     referentstates = list(node.referentstates)
     if len(referentstates) == 1 and not node.time_dependent:
         s_sym = referentstates[0]
@@ -218,62 +220,72 @@ def pre_order(node, lut_candidates, state_symbol, intermediate_candiates, skip_i
             for element in lut_candidates[s_str]:
                 if element == node.expr:
                     duplicate = True
-
-            if not duplicate and node.parent.depth == 1:
-                if evaluate_expr(node.expr):
-                    
-                    # print("Node: ", node.name)
-                    # for child in node.children:
-                    #     print("Children", child.expr)
-
-                    if node.name.startswith('<'):
-                        name = node.parent.name
-                    else:
-                        name = node.name
+            
+            try:
+   
+                if not duplicate and node.parent.depth == 1:
+                    if evaluate_expr(node.expr):
+                        
                         
 
-                    intermediate_candiates[s_str].append(name)
+                        # print("Node: ", node.name)
+                        # for child in node.children:
+                        #     print("Children", child.expr)
+                        #print(node.name)
+                        #print()
+                        if node.name.startswith('<'):
+                            if not node.parent.name.startswith("<"):
+                                name = node.parent.name
+                            else:
+                                for child in node.children:
+                                    if not child.name.startswith("<"):
+                                        name = child.name
+                                        #print(name)
+                                        node = child
+                        else:
+                            name = node.name
 
-                    for child in node.children:
-                        if not child.name.startswith('<') and child.name != "":
-                            #print("Child", child.name)
-                            skip_intermediates.append(child.name)
+        
+                        #print(state_symbol)
+                        #print(encountered_intermediates)
+
+                        #if name in encountered_intermediates:
+                        #    name += "_" + state_symbol
+
+                        if name not in encountered_intermediates:
+                            encountered_intermediates.append(name)
+                            intermediate_candidates[s_str].append(name)
+
+                            #print("parent name", node.name, node.children)
+                            #print("parent expr", node.expr)
+
+                            #for child in node.children:
+                                
+                                #print("child name", child.name, type(child.name))
+                                #print(child.expr)
+                                # if not child.name.startswith('<') and child.name != "":
+                                #     skip_intermediates.append(child.name)
 
 
-                    str_expr = str(node.expr)
-                    #str_state_expr = str(state_expr)                
+                            str_expr = str(node.expr)
+                            #str_state_expr = str(state_expr)                
 
-                    subs_V_expr = str_expr.replace("(t)","")
-                    #subs_V_state_expr = str_state_expr.replace("V(t)","V")
+                            subs_V_expr = str_expr.replace("(t)","")
 
+                            # Parse the C/C++ expression using SymPy
+                            sympy_expression = parse_expr(subs_V_expr)
 
-                    # Parse the C/C++ expression using SymPy
-                    sympy_expression = parse_expr(subs_V_expr)
+                            # Convert the SymPy expression to a Python expression
+                            cpp_expression = ccode(sympy_expression)
+                            lut_candidates[s_str].append(cpp_expression)
+            
+            except AttributeError:
+                pass
 
-                    # Convert the SymPy expression to a Python expression
-                    
-                    cpp_expression = ccode(sympy_expression)
-                    #print(subs_V_expr)
-                    #print(cpp_expression)
-
-                    lut_candidates[s_str].append(cpp_expression)
-
-                    #sympy_subs_expr = sympify(subs_V_expr)
-                    #sympy_state_expr = sympify(subs_V_state_expr)
-                    #count = len(lut_candidates[s_str])
-                    
-                    #lut_version = ["A", "B"]
-                    #old = node.expr
-                    #lut_intermediate = str(state_symbol + "_" + lut_version[count-1])
-
-                    #lut_enum_val.append(lut_intermediate)
-
-                    #new = symbols(lut_intermediate)
-                    #state_expr = state_expr.subs(node.expr, new)
-                    #print("here", state_expr)
+  
                     
     for child in node.children:
-        pre_order(child, lut_candidates, state_symbol, intermediate_candiates, skip_intermediates)
+        pre_order(child, lut_candidates, state_symbol, intermediate_candidates, skip_intermediates, encountered_intermediates)
         
     
     
@@ -1405,6 +1417,8 @@ class ODE(ODEComponent):
         new_intermediates = {candidate:{} for candidate in candidates}
         lut_intermediates = []
         skip_intermediates = []
+        encountered_intermediates = []
+
 
 
         for state_symbol in self.state_symbols:
@@ -1414,7 +1428,7 @@ class ODE(ODEComponent):
             tree = SyntaxTree.from_sympy(d_state.expr, self.intermediates, self.intermediate_symbols)
             
             tree.detect_state_references(state_symbols, self.t)
-            lut_expr_candidates, intermediate_candidates = tree.find_lut_candidates(candidates, state_symbol, skip_intermediates)
+            lut_expr_candidates, intermediate_candidates = tree.find_lut_candidates(candidates, state_symbol, skip_intermediates, encountered_intermediates)
             for key, val in lut_expr_candidates.items():
                 if len(val) > 0:
                     #lut_expressions[state_symbol] = lut_expr_candidates[key]
@@ -1447,13 +1461,18 @@ class ODE(ODEComponent):
         
         #print(self.intermediate_symbols)
         
-
+        #print(skip_intermediates)
         for intermediate in skip_intermediates:
             if intermediate in lut_intermediates:
                 skip_intermediates.remove(intermediate)
             
-
-
+        # print(skip_intermediates)
+        # for c in candidates:
+        #     expressions = lut_expressions[c]
+        #     intermediates = new_intermediates[c]
+            
+        #     for expr, intermediate in zip(expressions.items(), intermediates.items()):
+        #         print(intermediate[1], expr)
 
 
         #print(lut_expressions)
@@ -1461,9 +1480,17 @@ class ODE(ODEComponent):
         #print(new_intermediates)
         #print(candidates)
         #print(skip_intermediates)
+        
+        for key, item in lut_expressions.items():
+            if item != {}:
+                self._lut_expressions = lut_expressions
+                print("")
+                print("Setup LUT Done")
+                
+
+
 
         self._candidates = candidates
-        self._lut_expressions = lut_expressions
         self._new_intermediates = new_intermediates
         self._skip_intermediates = skip_intermediates
 
@@ -1534,7 +1561,7 @@ class ODE(ODEComponent):
         #print(lut_enum_val)
         #print(candidates)
 
-        print("\nSetup LUT done")
+        #print("\nSetup LUT done")
         #print()
         #print("lut expressions:", lut_expressions)
         #print()
