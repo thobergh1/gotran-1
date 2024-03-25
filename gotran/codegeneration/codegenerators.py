@@ -2021,6 +2021,8 @@ NUM_PARAMS,"""
             "    #else \n"
             "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
             "    #endif // defined(VECTOR_LENGTH) \n"
+            "    #else \n"
+            "    #pragma omp for \n"
             "    #endif \n"
             "    for (long i = 0; i < num_cells; i++)")
 
@@ -2177,11 +2179,14 @@ NUM_PARAMS,"""
                             state_lines.append(self.to_code(expr.expr, name))
                 else:
                     state_lines.append(self.to_code(expr.expr, name))   
+                
 
-    
 
         if comp.name != "MonitoredExpressions":            
             parameter_lines.append(state_lines)
+            
+            # state_lines.append("std::cout << i_K1 << std::endl")
+
             body_lines.append(parameter_lines)
 
 
