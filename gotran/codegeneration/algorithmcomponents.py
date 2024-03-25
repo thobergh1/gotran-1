@@ -80,7 +80,10 @@ def rhs_expressions(ode, function_name="rhs", result_name="dy", params=None):
             "Cannot compute right hand side expressions if the ODE is " "not finalized",
         )
 
-    descr = f"Compute the right hand side of the {ode} ODE"
+    if hasattr(ode, "_lut_expressions"):
+        descr = f'Compute the right hand side of the {ode} ODE \ntemplate <class LUT_type>'
+    else:
+        descr = f'Compute the right hand side of the {ode} ODE'
 
     return CodeComponent(
         "RHSComponent",
