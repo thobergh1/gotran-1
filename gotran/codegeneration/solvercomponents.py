@@ -588,6 +588,18 @@ class GeneralizedRushLarsen(CodeComponent):
             "Compute a forward step using the generalised Rush-Larsen (GRL1) scheme to the "
             "{0} ODE".format(ode)
         )
+
+        if hasattr(ode, "_lut_expressions"):
+            descr = (
+            "Compute a forward step using the generalised Rush-Larsen (GRL1) scheme to the "
+            "{0} ODE".format(ode) + "\ntemplate <class LUT_type> "
+        )
+        else:
+            descr = (
+            "Compute a forward step using the generalised Rush-Larsen (GRL1) scheme to the "
+            "{0} ODE".format(ode)
+        )
+            
         super(GeneralizedRushLarsen, self).__init__(
             "GeneralizedRushLarsen",
             ode,
