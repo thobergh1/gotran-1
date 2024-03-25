@@ -21,11 +21,8 @@ def gotran2c(filename, candidates, params):
     # Load Gotran model
     ode = load_ode(filename)
     
-
-    
-    #candidates = ["V", "Ca_ss"]
-
-    ode.setup_lut(candidates)
+    if candidates[0] != "":
+        ode.setup_lut(candidates)
     
     
 
@@ -104,17 +101,13 @@ def main():
         raise IOError("Expected the argument to be a file")
 
     file_name = sys.argv[1]
-    
 
 
-
-    candidates = [str(candidate) for candidate in sys.argv[2]]
+    #candidates = [str(candidate) for candidate in sys.argv[2]]
     #candidates = sys.argv[2].split(",").replace(" ","")
     candidates_arg = sys.argv[2]
     candidates = [candidate.replace(" ", "") for candidate in candidates_arg.split(",")]
     
-    print(candidates)
-
 
     gotran2c(file_name, candidates, params)
 
