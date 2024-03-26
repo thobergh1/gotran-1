@@ -59,12 +59,6 @@ MODEL_NAME = tentusscher_panfilov_2006_M_cell
 
 
 
-# Not working (either in original Gotran)
-
-
-
-
-
 MODEL_PATH = models
 
 
