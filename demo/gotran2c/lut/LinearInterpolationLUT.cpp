@@ -30,12 +30,15 @@ bool LinearInterpolationLUT::set_input(double V)
 
 LinearInterpolationInputState LinearInterpolationLUT::compute_input_state(double V)
 {
+    
+    //printf("%f\n", V);
+    
     bool valid = input_is_valid(V);
     if (!valid) {
         printf("V = %g exceeds the LUT range [%g, %g]\n", V, this->V_min, this->V_max);
         assert(input_is_valid(V));
     }
-
+    
     double row_fractional = (V - this->V_min) * this->V_step_inv;
 
     int row_above;

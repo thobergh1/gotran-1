@@ -57,8 +57,10 @@ struct state_colour_sets {
     const uint8_t *
             set_map; // array of length num states, entries indicate which colour set the state belongs to
 };
+// typedef void (*init_states_func)(cellmodel_float_t *states, long num_cells, long padded_num_cells);
+typedef void (*init_states_func)(cellmodel_float_t *states);
 
-typedef void (*init_states_func)(cellmodel_float_t *states, long num_cells, long padded_num_cells);
+
 typedef void (*init_parameters_func)(cellmodel_float_t *parameters);
 typedef int (*state_index_func)(const char name[]);
 typedef int (*parameter_index_func)(const char name[]);

@@ -82,30 +82,15 @@ int detect_num_threads()
 extern "C"
 void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
                              double* u_values, double* t_values,
-                             int num_timesteps, int num_cells, double dt)
+                             int num_timesteps, double V_step, double dt)
 {
   double t;
   int save_it = 1;
-  int it, j;
+  int it, j;  
 
-
-  //int num_cells = 1;
-  //int num_cells = 10;
-  
-
-  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
-  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
-          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
-
-  std::cout << num_timesteps << " num steps" << std::endl;
-  std::cout << num_cells << " num cells" << std::endl;
-  std::cout << padded_num_cells << " padded num cells" << std::endl;
-
-
-  //double solve_dt = 0.01;
   double V_min = -100;
   double V_max = 100;
-  double V_step = 0.0005;
+  // double V_step = 0.0005;
   
   
   // double Ca_min = 0.00001;
@@ -116,32 +101,12 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters);
 
-  // const std::vector<univariate_func> expressions_Ca_ss = *model_lut.expressions_Ca_ss;
-  // default_LUT_type lut_Ca_ss = LinearInterpolationLUT(Ca_min, Ca_max, Ca_step, expressions_Ca_ss, expressions_Ca_ss.size(), dt, parameters);
-
- 
-  printf("\n");
-  // printf("Num expressions (V) : %lu\n\n", expressions_V.size());
-  //printf("Num expressions (Ca_ss) : %lu\n\n", expressions_Ca_ss.size());
-
-  
-
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
-    // forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells);
-    forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-    // forward_explicit_euler(u, t, dt, parameters, num_cells, padded_num_cells, lut_V, lut_Ca_ss);
-
-    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
-    
+    forward_explicit_euler(u, t, dt, parameters, lut_V);
     for (j=0; j < NUM_STATES; j++) {
-      //u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-      u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-
-      // std::cout << u[j*padded_num_cells] << " ";
+      u_values[save_it*NUM_STATES + j] = u[j];
     }
-    // std::cout << std::endl;
-    //printf("\n");
     save_it++;
   }
 }
@@ -150,64 +115,27 @@ void ode_solve_forward_euler(double* u, cellmodel_float_t* parameters,
 extern "C"
 void ode_solve_rush_larsen(double* u, cellmodel_float_t* parameters,
                              double* u_values, double* t_values,
-                             int num_timesteps, int num_cells, double dt)
+                             int num_timesteps, double dt)
 {
  double t;
   int save_it = 1;
   int it, j;
-
-
-  //int num_cells = 1;
-  //int num_cells = 10;
   
-
-  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
-  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
-          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
-
-  std::cout << num_cells << " num cells" << std::endl;
-  std::cout << padded_num_cells << " padded num cells" << std::endl;
-
   //double solve_dt = 0.01;
   double V_min = -100;
   double V_max = 100;
-  double V_step = 0.001;
+  double V_step = 0.1;
   
-  
-  // double Ca_min = 0.00001;
-  // double Ca_max = 10;
-  // double Ca_step = 0.00001;
-  
-
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters);
-
-  // const std::vector<univariate_func> expressions_Ca_ss = *model_lut.expressions_Ca_ss;
-  // default_LUT_type lut_Ca_ss = LinearInterpolationLUT(Ca_min, Ca_max, Ca_step, expressions_Ca_ss, expressions_Ca_ss.size(), dt, parameters);
-
  
-  printf("\n");
-  // printf("Num expressions (V) : %lu\n\n", expressions_V.size());
-  //printf("Num expressions (Ca_ss) : %lu\n\n", expressions_Ca_ss.size());
-
-  
 
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
-    // forward_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells);
-    forward_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-    // forward_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells, lut_V, lut_Ca_ss);
-
-    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
-    //std::cout << u[0] << u[1] << u[2] << u[3] << std::endl;
-    
+    forward_rush_larsen(u, t, dt, parameters, lut_V);    
     for (j=0; j < NUM_STATES; j++) {
-      //u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-      u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-
-      //std::cout << u[j] << std::endl;
+      u_values[save_it*NUM_STATES + j] = u[j];
     }
-    //printf("\n");
     save_it++;
   }
 }
@@ -216,66 +144,29 @@ void ode_solve_rush_larsen(double* u, cellmodel_float_t* parameters,
 extern "C"
 void ode_solve_generalized_rush_larsen(double* u, cellmodel_float_t* parameters,
                              double* u_values, double* t_values,
-                             int num_timesteps, int num_cells, double dt)
+                             int num_timesteps, double V_step, double dt)
 {
   double t;
   int save_it = 1;
   int it, j;
 
-
-  //int num_cells = 1;
-  //int num_cells = 10;
   
-
-  size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
-  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
-          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
-
-  std::cout << num_timesteps << " num steps" << std::endl;
-  std::cout << num_cells << " num cells" << std::endl;
-  std::cout << padded_num_cells << " padded num cells" << std::endl;
-
-
   //double solve_dt = 0.01;
   double V_min = -100;
   double V_max = 100;
-  double V_step = 0.0005;
-  
-  
-  // double Ca_min = 0.00001;
-  // double Ca_max = 10;
-  // double Ca_step = 0.00001;
-  
+  // double V_step = 0.05;
+    
 
   const std::vector<univariate_func> expressions_V = *model_lut.expressions_V;
   default_LUT_type lut_V = LinearInterpolationLUT(V_min, V_max, V_step, expressions_V, expressions_V.size(), dt, parameters);
 
-  // const std::vector<univariate_func> expressions_Ca_ss = *model_lut.expressions_Ca_ss;
-  // default_LUT_type lut_Ca_ss = LinearInterpolationLUT(Ca_min, Ca_max, Ca_step, expressions_Ca_ss, expressions_Ca_ss.size(), dt, parameters);
-
- 
-  printf("\n");
-  // printf("Num expressions (V) : %lu\n\n", expressions_V.size());
-  //printf("Num expressions (Ca_ss) : %lu\n\n", expressions_Ca_ss.size());
-
-  
 
   for (it = 1; it <= num_timesteps; it++) {
     t = t_values[it-1];
-    // forward_generalized_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells);
-    forward_generalized_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-    // forward_generalized_rush_larsen(u, t, dt, parameters, num_cells, padded_num_cells, lut_V, lut_Ca_ss);
-
-    //printf("u: %f t: %f dt: %f param: %f\n", *u, t, dt, *parameters);
-    
+    forward_generalized_rush_larsen(u, t, dt, parameters, lut_V);
     for (j=0; j < NUM_STATES; j++) {
-      //u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-      u_values[save_it*NUM_STATES + j] = u[j*padded_num_cells];
-
-      // std::cout << u[j*padded_num_cells] << " ";
+      u_values[save_it*NUM_STATES + j] = u[j];
     }
-    // std::cout << std::endl;
-    //printf("\n");
     save_it++;
   }
 }
@@ -298,12 +189,8 @@ extern "C"
 int main(int argc, char *argv[])
 {
   double t_start = 0;
-  double dt = 1E-3;
-  // double dt = 1E-7;
+  double dt = 0.02E-3;
 
-  //double dt = 0.02E-3;
-  
-  
   int num_timesteps = (int) 5;
   if (argc > 1) {
     num_timesteps = atoi(argv[1]);
@@ -313,18 +200,20 @@ int main(int argc, char *argv[])
     }
   }
 
+  
   unsigned int num_states = NUM_STATES;
   unsigned int num_parameters = NUM_PARAMS;
 
   //int num_cells = 11500000;
-  int num_cells = 1;
-  //int num_cells = 10;
+  // int num_cells = 1;
   
   size_t alignment_bytes = CELLMODEL_STATES_ALIGNMENT_BYTES;
-  unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
-          num_cells, alignment_bytes / sizeof(cellmodel_float_t));
+  // unsigned int padded_num_cells = (unsigned int) ceil_to_multiple_uint64(
+          // num_cells, alignment_bytes / sizeof(cellmodel_float_t));
 
-  size_t states_size = num_states * sizeof(double) *padded_num_cells;
+  // size_t states_size = num_states * sizeof(double) *padded_num_cells;
+  size_t states_size = num_states * sizeof(double);
+
   size_t parameters_size = num_parameters * sizeof(double);
 
   cellmodel_float_t *states = (cellmodel_float_t *) aligned_alloc(alignment_bytes, states_size);
@@ -332,7 +221,7 @@ int main(int argc, char *argv[])
 
 
   init_parameters_values(parameters);
-  init_state_values(states, num_cells, padded_num_cells);
+  init_state_values(states);
 
   double t = t_start;
 
@@ -344,13 +233,14 @@ int main(int argc, char *argv[])
   int num_threads = detect_num_threads();
   printf("Using %d thread(s)\n", num_threads);
 
-  size_t total_size = states_size + parameters_size;
-  printf("Memory footprint: %lu bytes\n\n", total_size);
+  // size_t total_size = states_size + parameters_size;
+  // printf("Memory footprint: %lu bytes\n\n", total_size);
   
+
  
   double V_min = -100;
   double V_max = 100;
-  double V_step = 0.001;
+  double V_step = 0.005;
 
   
   // double Ca_min = 0.00001;
@@ -364,98 +254,64 @@ int main(int argc, char *argv[])
   //const std::vector<univariate_func> expressions_Ca_ss = *model_lut.expressions_Ca_ss;
   //default_LUT_type lut_Ca_ss = LinearInterpolationLUT(Ca_min, Ca_max, Ca_step, expressions_Ca_ss, expressions_Ca_ss.size(), dt, parameters);
 
- 
-  printf("\n");
-  // printf("Num expressions (V) : %lu\n\n", expressions_V.size());
-  //printf("Num expressions (Ca_ss) : %lu\n\n", expressions_Ca_ss.size());
-  
-
 
   // forward euler
   printf("Scheme: Forward Euler\n");
   int it;
 
-  /*
-
-  std::string folder_path = "/home/thomas/Dokumenter/gotran/venv/gotran/demo/gotran2c/results/time";
-  std::string file_name = "time_lut_V_" + std::to_string(num_timesteps) + "_steps.txt";
-  std::string file_path = folder_path + "/" + file_name;
-
-  std::ofstream outputFile(file_path);
-
-
-  for(int timing=0; timing < 10; timing++){
-    clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
-    for (it = 0; it < num_timesteps; it++) {
-      // forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
-      forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-      //forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells, lut_V, lut_Ca_ss);
-      t += dt;
-    }
-    clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
-
-    time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-    outputFile << std::fixed << std::setprecision(8) << time_elapsed << std::endl;
-    //std::cout << std::setprecision(8) << time_elapsed << std::endl;
-  }
-  outputFile.close();
-  */
-
-  // unsigned int half = int(num_states/2);
-
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
   for (it = 0; it < num_timesteps; it++) {
-    // forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells);
-    forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells, lut_V);
-    //forward_explicit_euler(states, t, dt, parameters, num_cells, padded_num_cells, lut_V, lut_Ca_ss);
-
-    // for(unsigned int j=0; j < num_states; j++){
-    //   if (j == half) {
-    //     std::cout << endl;
-    //   }
-    //   else{
-    //     std::cout << std::fixed << std::setprecision(8) << states[j*padded_num_cells] << " ";
-    //   }
-    // }
-    // std::cout << "\n" << std::endl;
-
+    forward_explicit_euler(states, t, dt, parameters, lut_V);
     t += dt;
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-
-
 
   printf("Computed %d time steps in %g s. Time steps per second: %g\n",
       num_timesteps, time_elapsed, num_timesteps/time_elapsed);
   printf("\n");
-  // printf("V= %f at t=%f\n", states[7*padded_num_cells],t);
+  printf("V= %f at t=%f\n", states[17],t);
   
-  /*
+  
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-  printf("Computed %d time steps in %g s. Computed cell steps per second: %g\n",
-      num_timesteps, time_elapsed, num_cells*num_timesteps/time_elapsed);
-  */
-
-  printf("\n");
-
-
+  printf("Computed %d time steps in %g s. Computed steps per second: %g\n",
+      num_timesteps, time_elapsed, num_timesteps/time_elapsed);
+  
 
   // Rush Larsen
   printf("Scheme: Rush Larsen (exp integrator on all gates)\n");
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
-  init_state_values(states, num_cells, padded_num_cells);
+  init_state_values(states);
   for (it = 0; it < num_timesteps; it++) {
-    // forward_rush_larsen(states, t, dt, parameters, num_cells, padded_num_cells);
-    forward_rush_larsen(states, t, dt, parameters, num_cells, padded_num_cells, lut_V);
+    forward_rush_larsen(states, t, dt, parameters, lut_V);
+
     t += dt;
   }
   clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
   time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
-   printf("Computed %d time steps in %g s. Computed cell steps per second: %g\n",
-      num_timesteps, time_elapsed, num_cells*num_timesteps/time_elapsed);
+   printf("Computed %d time steps in %g s. Computed steps per second: %g\n",
+      num_timesteps, time_elapsed, num_timesteps/time_elapsed);
   printf("\n");
-  // printf("V= %f at t=%f\n", states[17*padded_num_cells],t);
+  printf("V= %f at t=%f\n", states[17],t);
+
+
+
+  // Generalized Rush Larsen
+  printf("Scheme: Generalized Rush Larsen\n");
+  clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_start);
+  init_state_values(states);
+  for (it = 0; it < num_timesteps; it++) {
+    forward_generalized_rush_larsen(states, t, dt, parameters, lut_V);
+    t += dt;
+  }
+  clock_gettime(CLOCK_MONOTONIC_RAW, &timestamp_now);
+  time_elapsed = timestamp_now.tv_sec - timestamp_start.tv_sec + 1E-9 * (timestamp_now.tv_nsec - timestamp_start.tv_nsec);
+   printf("Computed %d time steps in %g s. Computed steps per second: %g\n",
+      num_timesteps, time_elapsed, num_timesteps/time_elapsed);
+  printf("\n");
+  printf("V= %f at t=%f\n", states[17],t);
+
+
 
   free(states);
   free(parameters);

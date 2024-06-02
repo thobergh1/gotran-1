@@ -6,8 +6,8 @@ libfile = libdemo.so
 # CPPFLAGS = -Wall -O3 -fopenmp -ffast-math -march=native -DHINT_OMP_SIMD -DVECTOR_LENGTH=4
 # CPPFLAGS = -Wall -O3 -fopenmp -ffast-math -march=native -DVECTOR_LENGTH=4
 # CPPFLAGS = -Wall -O3 -fopenmp -ffast-math -march=native -DHINT_OMP_SIMD
-CPPFLAGS = -Wall -O3 -fopenmp -ffast-math -march=native
-# CPPFLAGS = -Wall -O3 -ffast-math -march=native
+# CPPFLAGS = -Wall -O3 -fopenmp -ffast-math -march=native
+CPPFLAGS = -Wall -O3 -ffast-math -march=native
 
 
 # LDLIBS = -lm -fopenmp -lstdc++ -g
@@ -65,13 +65,14 @@ MODEL_PATH = models
 MODEL_ODE_FILE = $(MODEL_PATH)/$(MODEL_NAME).ode
 MODEL_HPP_FILE = $(MODEL_NAME).hpp
 
-candidates = ""
+# candidates = "V, Ca_ss"
+candidates = "V"
 
-gotran_generator = python -m gotran gotran2c 
+
+gotran_generator = python -m gotran gotran2cpp
 
 all: clean $(executable) $(libfile)
 $(executable): demo.o
-
 
 
 $(libfile): CPPFLAGS += -fPIC

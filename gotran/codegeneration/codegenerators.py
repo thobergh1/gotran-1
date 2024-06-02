@@ -338,9 +338,6 @@ class BaseCodeGenerator(object):
 
         if hasattr(ode, "_lut_expressions"):
             function_names = [name.function_name for name in comps]
-            function_names.remove("rhs")
-            function_names.remove("monitor")
-
             code["init_setup_model"] = self.setup_model(ode, function_names, indent)
 
         return code
@@ -1614,6 +1611,49 @@ class CCodeGenerator(BaseCodeGenerator):
             s += "f"
         return s
 
+    # def init_states_code(self, ode, indent=0):
+    #     """
+    #     Generate code for setting initial condition
+    #     """
+
+    #     states_name = self.params.code.states.array_name
+    #     offset = (
+    #         f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+    #     )
+
+    #     enum_based_indexing = self.params.code["body"]["use_enum"]
+
+    #     body_lines = [f"#pragma omp parallel for \n"
+    #                  "  for (long i = 0; i < num_cells; i++)"]
+    #     secondary_body_lines = []
+
+    #     for i, state in enumerate(ode.full_states):
+
+    #         index = self._state_enum_val(state) if enum_based_indexing else i
+    #         line = "{0}[{1}{2} * padded_num_cells + i] = {3}".format(
+    #             states_name,
+    #             offset,
+    #             index,
+    #             self._float_literal_str(state.init),
+    #         )
+    #         if not enum_based_indexing:
+    #             line += f"; // {state.name}"
+    #         secondary_body_lines.append(line)
+
+    #     body_lines.append(secondary_body_lines)
+
+    #     # Add function prototype
+    #     init_function = self.wrap_body_with_function_prototype(
+    #         body_lines,
+    #         "init_state_values",
+    #         f"{self.float_type}* {states_name}, const long num_cells, long padded_num_cells",
+    #         "",
+    #         'Init state values \nextern "C"',
+    #     )
+
+    #     return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
+
+
     def init_states_code(self, ode, indent=0):
         """
         Generate code for setting initial condition
@@ -1625,15 +1665,11 @@ class CCodeGenerator(BaseCodeGenerator):
         )
 
         enum_based_indexing = self.params.code["body"]["use_enum"]
-
-        body_lines = [f"#pragma omp parallel for \n"
-                     "  for (long i = 0; i < num_cells; i++)"]
-        secondary_body_lines = []
+        body_lines = []
 
         for i, state in enumerate(ode.full_states):
-
             index = self._state_enum_val(state) if enum_based_indexing else i
-            line = "{0}[{1}{2} * padded_num_cells + i] = {3}".format(
+            line = "{0}[{1}{2}] = {3}".format(
                 states_name,
                 offset,
                 index,
@@ -1641,20 +1677,19 @@ class CCodeGenerator(BaseCodeGenerator):
             )
             if not enum_based_indexing:
                 line += f"; // {state.name}"
-            secondary_body_lines.append(line)
-
-        body_lines.append(secondary_body_lines)
+            body_lines.append(line)
 
         # Add function prototype
         init_function = self.wrap_body_with_function_prototype(
             body_lines,
             "init_state_values",
-            f"{self.float_type}* {states_name}, const long num_cells, long padded_num_cells",
+            f"{self.float_type}* {states_name}",
             "",
-            'Init state values \nextern "C"',
+            "Init state values",
         )
 
         return "\n".join(self.indent_and_split_lines(init_function, indent=indent))
+
 
     def init_parameters_code(self, ode, indent=0):
         """
@@ -1936,6 +1971,7 @@ const struct cellmodel_lut model_lut = {
 &state_index,
 &parameter_index,\n"""
         length = len(function_names)
+        print(function_names)
         for function in function_names:
             if length >=2:
                 line_ending = "\n"
@@ -1983,77 +2019,83 @@ NUM_PARAMS,"""
         check_arg(comp, CodeComponent)
         check_kwarg(default_arguments, "default_arguments", str)
         check_kwarg(indent, "indent", int)
-        
-        if comp.name == "MonitoredExpressions":
-            body_lines = self._init_arguments(comp)
-        else:
-            body_lines = [f"#pragma omp parallel"]
-            parameter_lines = []
 
-            parameter_name = self.params.code.parameters.array_name
-            offset = (
-                f"{parameter_name}_offset + "
-                if self.params.code.parameters.add_offset
-                else ""
-            )
-            enum_based_indexing = self.params.code["body"]["use_enum"]
+        body_lines = self._init_arguments(comp)
 
-            for i, param in enumerate(comp.root.parameters):
-                index = self._parameter_enum_val(param) if enum_based_indexing else i
-                line = "const {0} {1} = {2}[{3}{4}]".format(
-                    self.float_type,
-                    param.name,
-                    parameter_name,
-                    offset,
-                    index,
-                )
-                if not enum_based_indexing:
-                    line += f"; // {param.name}"
-                parameter_lines.append(line)
+        # if comp.name == "MonitoredExpressions":
+        #     body_lines = self._init_arguments(comp)
+        # else:
+        #     body_lines = [f"#pragma omp parallel"]
+        #     parameter_lines = []
 
-            parameter_lines.append(
-            "#if defined(HINT_CLANG_SIMD) \n"
-            "    #pragma omp for\n"
-            "    #pragma clang loop vectorize(assume_safety) \n"
-            "    #elif defined(HINT_OMP_SIMD) \n"
-            "    #ifdef VECTOR_LENGTH \n"
-            "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH) \n"
-            "    #else \n"
-            "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
-            "    #endif // defined(VECTOR_LENGTH) \n"
-            "    #else \n"
-            "    #pragma omp for \n"
-            "    #endif \n"
-            "    for (long i = 0; i < num_cells; i++)")
+        #     parameter_name = self.params.code.parameters.array_name
+        #     offset = (
+        #         f"{parameter_name}_offset + "
+        #         if self.params.code.parameters.add_offset
+        #         else ""
+        #     )
+        #     enum_based_indexing = self.params.code["body"]["use_enum"]
+
+        #     for i, param in enumerate(comp.root.parameters):
+        #         index = self._parameter_enum_val(param) if enum_based_indexing else i
+        #         line = "const {0} {1} = {2}[{3}{4}]".format(
+        #             self.float_type,
+        #             param.name,
+        #             parameter_name,
+        #             offset,
+        #             index,
+        #         )
+        #         if not enum_based_indexing:
+        #             line += f"; // {param.name}"
+        #         parameter_lines.append(line)
+
+        #     parameter_lines.append(
+        #     "#if defined(HINT_CLANG_SIMD) \n"
+        #     "    #pragma omp for\n"
+        #     "    #pragma clang loop vectorize(assume_safety) \n"
+        #     "    #elif defined(HINT_OMP_SIMD) \n"
+        #     "    #ifdef VECTOR_LENGTH \n"
+        #     "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) simdlen(VECTOR_LENGTH) \n"
+        #     "    #else \n"
+        #     "    #pragma omp for simd aligned(states : CELLMODEL_STATES_ALIGNMENT_BYTES) \n"
+        #     "    #endif // defined(VECTOR_LENGTH) \n"
+        #     "    #else \n"
+        #     "    #pragma omp for \n"
+        #     "    #endif \n"
+        #     "    for (long i = 0; i < num_cells; i++)")
 
 
-            states_name = self.params.code.states.array_name
-            offset = (
-                f"{states_name}_offset + " if self.params.code.states.add_offset else ""
-            )
+        #     states_name = self.params.code.states.array_name
+        #     offset = (
+        #         f"{states_name}_offset + " if self.params.code.states.add_offset else ""
+        #     )
             
 
-            state_lines = []
-            for i, state in enumerate(comp.root.full_states):
+        #     state_lines = []
+        #     for i, state in enumerate(comp.root.full_states):
 
-                index = self._state_enum_val(state) if enum_based_indexing else i
-                line = "const {0} {1} = {2}[{3}{4} * padded_num_cells + i]".format(
-                    self.float_type,
-                    state.name,
-                    states_name,
-                    offset,
-                    index,
-                )
-                if not enum_based_indexing:
-                    line += f"; // {state.name}"
-                state_lines.append(line)
-            state_lines.append("")
+        #         index = self._state_enum_val(state) if enum_based_indexing else i
+        #         line = "const {0} {1} = {2}[{3}{4} * padded_num_cells + i]".format(
+        #             self.float_type,
+        #             state.name,
+        #             states_name,
+        #             offset,
+        #             index,
+        #         )
+        #         if not enum_based_indexing:
+        #             line += f"; // {state.name}"
+        #         state_lines.append(line)
+        #     state_lines.append("")
         
 
-            if hasattr(ode, "_lut_expressions"):
-                for candidate in ode._candidates:
-                    state_lines.append(f'const auto lut_{candidate}_state = lut_{candidate}.compute_input_state({candidate})')
-            
+        #     if hasattr(ode, "_lut_expressions"):
+        #         for candidate in ode._candidates:
+        #             state_lines.append(f'const auto lut_{candidate}_state = lut_{candidate}.compute_input_state({candidate})')
+        
+        if hasattr(ode, "_lut_expressions"):
+            for candidate in ode._candidates:
+                body_lines.append(f'const auto lut_{candidate}_state = lut_{candidate}.compute_input_state({candidate})')
+    
         expr_lines = [""]
 
         
@@ -2096,8 +2138,11 @@ NUM_PARAMS,"""
                     body_lines.append("// " + str(expr))
                     continue
                 else:
-                    state_lines.append("")
-                    state_lines.append("// " + str(expr))
+                    # state_lines.append("")
+                    # state_lines.append("// " + str(expr))
+                    # continue
+                    body_lines.append("")
+                    body_lines.append("// " + str(expr))
                     continue
 
             elif (
@@ -2115,7 +2160,9 @@ NUM_PARAMS,"""
                                 ),
                             )
                         else:
-                            name = "{0}[{1} * padded_num_cells + i]".format(
+                            # name = "{0}[{1} * padded_num_cells + i]".format(
+                            name = "{0}[{1}]".format(
+                            
                                 expr.basename,
                                 self._state_enum_val(expr.state),
                             )
@@ -2173,21 +2220,27 @@ NUM_PARAMS,"""
                     if outer_key:
                         lookup_expr = f"lut_{outer_key}.lookup(LUT_INDEX_{expr}, lut_{outer_key}_state)"
 
-                        state_lines.append(self.to_code(lookup_expr, name))
+                        
+                        # state_lines.append(self.to_code(lookup_expr, name))
+                        body_lines.append(self.to_code(lookup_expr, name))
                     else:
                         if expr.name not in ode._skip_intermediates:
-                            state_lines.append(self.to_code(expr.expr, name))
+                            # state_lines.append(self.to_code(expr.expr, name))
+                            body_lines.append(self.to_code(expr.expr, name))
+
                 else:
-                    state_lines.append(self.to_code(expr.expr, name))   
+                    # state_lines.append(self.to_code(expr.expr, name))   
+                    body_lines.append(self.to_code(expr.expr, name))   
+
                 
 
 
-        if comp.name != "MonitoredExpressions":            
-            parameter_lines.append(state_lines)
+        # if comp.name != "MonitoredExpressions":            
+        #     parameter_lines.append(state_lines)
             
-            # state_lines.append("std::cout << i_K1 << std::endl")
+        #     # state_lines.append("std::cout << i_K1 << std::endl")
 
-            body_lines.append(parameter_lines)
+        #     body_lines.append(parameter_lines)
 
 
         if return_body_lines:
@@ -2197,9 +2250,8 @@ NUM_PARAMS,"""
         if include_signature:
             # Add function prototype
             if comp.name != "MonitoredExpressions":
-        
-                parallel_args = ",\n const long num_cells, long padded_num_cells"
-        
+                # parallel_args = ",\n const long num_cells, long padded_num_cells"
+                parallel_args = ""
                 if hasattr(ode, "_lut_expressions"):
                     for candidate in ode._candidates:
                         parallel_args += f", LUT_type &lut_{candidate}"
